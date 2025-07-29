@@ -286,12 +286,12 @@ export function ContractsTab() {
     }
   };
 
-  const canEditContract = (contract: Contract) => {
+  const canEditContract = () => {
     // FIXED: Only admins can edit contracts
     return isAdmin;
   };
 
-  const canDeleteContract = (contract: Contract) => {
+  const canDeleteContract = () => {
     // FIXED: Only admins can delete contracts
     return isAdmin;
   };
@@ -766,7 +766,7 @@ export function ContractsTab() {
                           <Calendar className="h-4 w-4 mr-2" />
                           Stunden verfolgen
                         </DropdownMenuItem>
-                        {canEditContract(contract) && (
+                        {canEditContract() && (
                           <DropdownMenuItem onClick={() => setEditingContract(contract)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Vertrag bearbeiten
@@ -776,7 +776,7 @@ export function ContractsTab() {
                           <Download className="h-4 w-4 mr-2" />
                           Als PDF herunterladen
                         </DropdownMenuItem>
-                        {canDeleteContract(contract) && (
+                        {canDeleteContract() && (
                           <DropdownMenuItem 
                             onClick={() => handleDeleteContract(contract.id)}
                             className="text-red-600"

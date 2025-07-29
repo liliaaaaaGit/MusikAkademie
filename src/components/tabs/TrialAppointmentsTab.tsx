@@ -177,7 +177,7 @@ export function TrialAppointmentsTab() {
     }
   };
 
-  const canEditTrialAppointment = (appointment: TrialAppointment) => {
+  const canEditTrialAppointment = () => {
     // Only admins can edit trial appointments
     return isAdmin;
   };
@@ -257,7 +257,7 @@ export function TrialAppointmentsTab() {
                 Ablehnen
               </DropdownMenuItem>
             )}
-            {canEditTrialAppointment(appointment) && (
+            {canEditTrialAppointment() && (
               <DropdownMenuItem onClick={() => setEditingTrialAppointment(appointment)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Bearbeiten

@@ -140,12 +140,12 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       
       // Add custom discount ID to selected discounts if not already there
       if (!formData.selectedDiscountIds.includes('custom-discount')) {
-        setFormData(prev => ({
-          ...prev,
-          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
+        setFormData(current => ({
+          ...current,
+          selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
         }));
         console.log('DEBUG: setFormData for custom discount', {
-          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
+          selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
         });
       }
     }

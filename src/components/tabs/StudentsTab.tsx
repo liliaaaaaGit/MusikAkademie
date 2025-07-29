@@ -186,12 +186,12 @@ export function StudentsTab() {
     return attendanceCount;
   };
 
-  const canEditStudent = (student: Student) => {
+  const canEditStudent = () => {
     // Teachers cannot edit students - only admins can
     return isAdmin;
   };
 
-  const canDeleteStudent = (student: Student) => {
+  const canDeleteStudent = () => {
     return isAdmin; // Only admins can delete students
   };
 
@@ -427,7 +427,7 @@ export function StudentsTab() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {(canEditStudent(student) || canDeleteStudent(student)) && (
+                      {(canEditStudent() || canDeleteStudent()) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button 
@@ -438,7 +438,7 @@ export function StudentsTab() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canEditStudent(student) && (
+                            {canEditStudent() && (
                               <DropdownMenuItem onClick={() => setEditingStudent(student)}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Bearbeiten
@@ -450,7 +450,7 @@ export function StudentsTab() {
                                 Vertrag anzeigen
                               </DropdownMenuItem>
                             )}
-                            {canDeleteStudent(student) && (
+                            {canDeleteStudent() && (
                               <DropdownMenuItem 
                                 onClick={() => handleDeleteStudent(student)}
                                 className="text-red-600"

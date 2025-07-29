@@ -5,7 +5,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, MoreHorizontal, Edit, Check, Clock } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -40,7 +40,6 @@ export function TrialLessonsTab() {
     profile?.id ? teachers.find(t => t.profile_id === profile.id) : undefined, 
     [profile, teachers]
   );
-  const currentTeacherId = currentTeacher?.id;
 
   useEffect(() => {
     fetchTeachers();

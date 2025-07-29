@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Search, MoreHorizontal, Edit, Check, Clock, User, Trash2, Info, X, UserCheck } from 'lucide-react';
@@ -13,7 +13,6 @@ import { TrialAppointmentForm } from '@/components/forms/TrialAppointmentForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
-import { useLinkTeacherUserId } from '@/hooks/useLinkTeacherUserId';
 
 export function TrialAppointmentsTab() {
   const { profile, isAdmin } = useAuth();
@@ -24,7 +23,6 @@ export function TrialAppointmentsTab() {
   const [instrumentFilter, setInstrumentFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTrialAppointment, setEditingTrialAppointment] = useState<TrialAppointment | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   // Memoize current teacher lookup
   const currentTeacher = useMemo(() => 
@@ -587,22 +585,22 @@ export function TrialAppointmentsTab() {
       )}
 
       {/* Message Notification */}
-      {message && (
-        <Card className="bg-gray-50 border-gray-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <Info className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-800">
-                  {message}
-                </h3>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Removed: {message && ( */}
+      {/* Removed:   <Card className="bg-gray-50 border-gray-200"> */}
+      {/* Removed:     <CardContent className="pt-6"> */}
+      {/* Removed:       <div className="flex items-start space-x-3"> */}
+      {/* Removed:         <div className="flex-shrink-0"> */}
+      {/* Removed:           <Info className="h-5 w-5 text-gray-600" /> */}
+      {/* Removed:         </div> */}
+      {/* Removed:         <div> */}
+      {/* Removed:           <h3 className="text-sm font-medium text-gray-800"> */}
+      {/* Removed:             {message} */}
+      {/* Removed:           </h3> */}
+      {/* Removed:         </div> */}
+      {/* Removed:       </div> */}
+      {/* Removed:     </CardContent> */}
+      {/* Removed:   </Card> */}
+      {/* Removed: )} */}
     </div>
   );
 }

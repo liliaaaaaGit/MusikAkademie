@@ -15,10 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
 import { ContractDetailsModal } from '@/components/modals/ContractDetailsModal';
-import { Navigate } from 'react-router-dom';
 import { StudentCardView } from './StudentCardView';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { TeacherMobileInfoBox } from './TeacherMobileInfoBox';
 
 export function StudentsTab() {
   const { profile, isAdmin, user } = useAuth();

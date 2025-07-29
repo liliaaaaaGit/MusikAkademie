@@ -14,7 +14,6 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
     const doc = new jsPDF();
     
     // Set up fonts and colors
-    const primaryColor = '#ed3b71';
     const darkGray = '#374151';
     const lightGray = '#6b7280';
     const mediumGray = '#9ca3af';

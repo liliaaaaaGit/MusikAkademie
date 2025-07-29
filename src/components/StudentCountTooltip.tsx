@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase, Student } from '@/lib/supabase';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +33,7 @@ export function StudentCountTooltip({ teacherId, studentCount }: StudentCountToo
         return;
       }
 
-      setStudents(data || []);
+      setStudents(data as Student[] || []);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to fetch students');

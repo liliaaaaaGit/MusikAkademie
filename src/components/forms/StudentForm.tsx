@@ -60,7 +60,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
   // Custom discount state
   const [useCustomDiscount, setUseCustomDiscount] = useState(false);
   const [customDiscountPercent, setCustomDiscountPercent] = useState<number>(0);
-  const [customDiscountId, setCustomDiscountId] = useState<string>('custom-discount');
 
   const [formData, setFormData] = useState({
     name: student?.name || '',
@@ -140,13 +139,13 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       setCustomDiscountPercent(student.contract.custom_discount_percent);
       
       // Add custom discount ID to selected discounts if not already there
-      if (!formData.selectedDiscountIds.includes(customDiscountId)) {
+      if (!formData.selectedDiscountIds.includes('custom-discount')) {
         setFormData(prev => ({
           ...prev,
-          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
         }));
         console.log('DEBUG: setFormData for custom discount', {
-          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
         });
       }
     }
@@ -231,7 +230,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       if (useCustomDiscount && customDiscountPercent > 0) {
         // Create a custom discount object that matches ContractDiscount interface
         const customDiscount: ContractDiscount = {
-          id: customDiscountId,
+          id: 'custom-discount',
           name: `Custom Discount (${customDiscountPercent}%)`,
           discount_percent: customDiscountPercent,
           conditions: 'manually assigned',
@@ -240,8 +239,8 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
         };
         
         // Add the custom discount ID to the list
-        if (!discountIdsToUse.includes(customDiscountId)) {
-          discountIdsToUse.push(customDiscountId);
+        if (!discountIdsToUse.includes('custom-discount')) {
+          discountIdsToUse.push('custom-discount');
         }
         
         // Calculate pricing with the custom discount
@@ -332,8 +331,8 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       contract_variant_id: formData.selectedVariantId,
       status: 'active',
       // FIXED: Handle discount IDs properly
-      discount_ids: formData.selectedDiscountIds.filter(id => id !== customDiscountId).length > 0 
-        ? formData.selectedDiscountIds.filter(id => id !== customDiscountId) 
+      discount_ids: formData.selectedDiscountIds.filter(id => id !== 'custom-discount').length > 0 
+        ? formData.selectedDiscountIds.filter(id => id !== 'custom-discount') 
         : null,
       // FIXED: Handle custom discount properly
       custom_discount_percent: useCustomDiscount && customDiscountPercent > 0 
@@ -625,7 +624,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     if (!checked) {
       setFormData(prev => ({
         ...prev,
-        selectedDiscountIds: prev.selectedDiscountIds.filter(id => id !== customDiscountId)
+        selectedDiscountIds: prev.selectedDiscountIds.filter(id => id !== 'custom-discount')
       }));
     }
   };

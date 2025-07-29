@@ -1,22 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Contract, Teacher, Student, Lesson, ContractDiscount, getContractDuration, getContractTypeDisplay, getLegacyContractTypeDisplay, getLegacyContractDuration, generateContractPDF, PDFContractData } from '@/lib/supabase';
+import { supabase, Contract, Teacher, Student, ContractDiscount, getContractTypeDisplay, getLegacyContractTypeDisplay, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Search, MoreHorizontal, Edit, Calendar, FileText, Users, Trash2, Clock, ArrowLeft, Download, Info } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AttendanceModal } from '@/components/modals/AttendanceModal';
 import { LessonTrackerModal } from '@/components/modals/LessonTrackerModal';
 import { TeacherContractsModal } from '@/components/modals/TeacherContractsModal';
 import { DeleteContractConfirmationModal } from '@/components/modals/DeleteContractConfirmationModal';
 import { ContractForm } from '@/components/forms/ContractForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { format } from 'date-fns';
-import { de } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 export function ContractsTab() {

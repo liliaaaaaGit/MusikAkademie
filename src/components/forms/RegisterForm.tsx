@@ -43,7 +43,6 @@ export function RegisterForm() {
       setLoading(false);
       return;
     }
-    const teacher = teachers[0];
     // 2. Register user
     const { data: userData, error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,

@@ -355,7 +355,6 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
               {lessons.map((lesson) => {
                 const editedData = editedLessons[lesson.id] || { date: '', comment: '', is_available: true };
                 const status = getLessonStatus(lesson);
-                const isComplete = editedData.is_available && editedData.date;
                 // If lesson is undefined, skip rendering
                 if (!lesson) return null;
                 return (

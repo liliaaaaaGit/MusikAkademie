@@ -34,7 +34,6 @@ export function TrialAppointmentForm({ trialAppointment, teachers, onSuccess, on
     });
   }, [profile, teachers]);
   
-  const currentTeacherId = currentTeacher?.id;
   const isTeacherProfileResolved = profile?.role === 'teacher' ? !!currentTeacher : true;
 
   // Custom instrument state

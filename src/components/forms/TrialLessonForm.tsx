@@ -34,7 +34,6 @@ export function TrialLessonForm({ trialLesson, teachers, onSuccess, onCancel }: 
     });
   }, [profile, teachers]);
   
-  const currentTeacherId = currentTeacher?.id;
   const isTeacherProfileResolved = profile?.role === 'teacher' ? !!currentTeacher : true;
 
   const [formData, setFormData] = useState({

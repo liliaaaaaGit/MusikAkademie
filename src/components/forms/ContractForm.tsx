@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Contract, Student, Teacher, ContractCategory, ContractVariant, ContractDiscount, ContractPricing, calculateContractPrice, getContractDuration, getLegacyContractType } from '@/lib/supabase';
+import { supabase, Contract, Student, ContractCategory, ContractVariant, ContractDiscount, ContractPricing, calculateContractPrice, getLegacyContractType } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,11 +48,6 @@ const deepCopy = <T,>(obj: T): T => {
   return obj;
 };
 
-// Helper to convert JS array to Postgres array string
-function toPostgresArray(arr: string[]): string {
-  return '{' + arr.map(id => `"${id}"`).join(',') + '}';
-}
-
 export function ContractForm({ contract, students, onSuccess, onCancel, initialStudentId }: ContractFormProps) {
   const { profile, isAdmin } = useAuth();
   
@@ -77,7 +72,6 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   // Custom discount state
   const [useCustomDiscount, setUseCustomDiscount] = useState(false);
   const [customDiscountPercent, setCustomDiscountPercent] = useState<number>(0);
-  const [customDiscountId, setCustomDiscountId] = useState<string>('custom-discount');
 
   const [formData, setFormData] = useState({
     student_id: contract?.student_id || initialStudentId || '',
@@ -114,11 +108,6 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
     return contractVariants.filter(v => v.contract_category_id === formData.selectedCategoryId);
   }, [contractVariants, formData.selectedCategoryId]);
 
-  // Get selected variant details
-  const selectedVariant = useMemo(() => {
-    return contractVariants.find(v => v.id === formData.selectedVariantId);
-  }, [contractVariants, formData.selectedVariantId]);
-
   // Get selected category details
   const selectedCategory = useMemo(() => {
     return contractCategories.find(c => c.id === formData.selectedCategoryId);
@@ -151,10 +140,10 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       setCustomDiscountPercent(contract.custom_discount_percent);
       
       // Add custom discount ID to selected discounts if not already there
-      if (!formData.selectedDiscountIds.includes(customDiscountId)) {
+      if (!formData.selectedDiscountIds.includes('custom-discount')) {
         setFormData(prev => ({
           ...prev,
-          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
         }));
       }
     }
@@ -224,9 +213,9 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
     try {
       const pricing = await calculateContractPrice(
         formData.selectedVariantId,
-        formData.selectedDiscountIds.filter(id => id !== customDiscountId),
+        formData.selectedDiscountIds.filter(id => id !== 'custom-discount'),
         useCustomDiscount ? {
-          id: customDiscountId,
+          id: 'custom-discount',
           name: `Custom Discount (${customDiscountPercent}%)`,
           discount_percent: customDiscountPercent,
           conditions: 'manually assigned',
@@ -244,7 +233,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   const handleSave = async () => {
     const loadingToast = toast.loading('Speichere Vertrag...');
     // Prepare contractData from form state
-    const discountIds = formData.selectedDiscountIds.filter(id => id !== customDiscountId);
+    const discountIds = formData.selectedDiscountIds.filter(id => id !== 'custom-discount');
     const contractData = {
       student_id: formData.student_id,
       type: getLegacyContractType(selectedCategory?.name || ''),
@@ -450,14 +439,14 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       // Remove custom discount from selected discounts
       setFormData(prev => ({
         ...prev,
-        selectedDiscountIds: prev.selectedDiscountIds.filter(id => id !== customDiscountId)
+        selectedDiscountIds: prev.selectedDiscountIds.filter(id => id !== 'custom-discount')
       }));
     } else {
       // Add custom discount to selected discounts
-      if (!formData.selectedDiscountIds.includes(customDiscountId)) {
+      if (!formData.selectedDiscountIds.includes('custom-discount')) {
         setFormData(prev => ({
           ...prev,
-          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
         }));
       }
     }

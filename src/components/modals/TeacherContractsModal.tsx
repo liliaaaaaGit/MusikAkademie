@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, FileText, User, Clock } from 'lucide-react';
+import { Calendar, FileText, User } from 'lucide-react';
 import { LessonTrackerModal } from './LessonTrackerModal';
 import { toast } from 'sonner';
 

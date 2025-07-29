@@ -43,7 +43,7 @@ export function TrialLessonForm({ trialLesson, teachers, onSuccess, onCancel }: 
     email: trialLesson?.email || '',
     phone: trialLesson?.phone || '',
     status: trialLesson?.status || 'open',
-    assigned_teacher_id: trialLesson?.assigned_teacher_id || (profile?.role === 'teacher' && currentTeacherId ? currentTeacherId : '')
+    assigned_teacher_id: trialLesson?.assigned_teacher_id || (profile?.role === 'teacher' && currentTeacher?.id ? currentTeacher.id : '')
   });
   const [loading, setLoading] = useState(false);
 
@@ -56,8 +56,8 @@ export function TrialLessonForm({ trialLesson, teachers, onSuccess, onCancel }: 
       const submitData = { ...formData };
       
       // For teachers, ensure they can only assign trial lessons to themselves
-      if (profile?.role === 'teacher' && currentTeacherId) {
-        submitData.assigned_teacher_id = currentTeacherId;
+      if (profile?.role === 'teacher' && currentTeacher?.id) {
+        submitData.assigned_teacher_id = currentTeacher.id;
       }
       
       // Convert empty string to null for assigned_teacher_id
@@ -66,10 +66,17 @@ export function TrialLessonForm({ trialLesson, teachers, onSuccess, onCancel }: 
       }
 
       if (trialLesson) {
+        // Transform data to match current database structure
+        const { assigned_teacher_id, ...baseData } = submitData;
+        const dbData = {
+          ...baseData,
+          teacher_id: assigned_teacher_id, // Map legacy field to current field
+        };
+
         // Update existing trial lesson
         const { error } = await supabase
-          .from('trial_lessons')
-          .update(submitData)
+          .from('trial_appointments')
+          .update(dbData)
           .eq('id', trialLesson.id);
 
         if (error) {
@@ -79,13 +86,18 @@ export function TrialLessonForm({ trialLesson, teachers, onSuccess, onCancel }: 
 
         toast.success('Trial lesson updated successfully');
       } else {
+        // Transform data to match current database structure
+        const { assigned_teacher_id, ...baseData } = submitData;
+        const dbData = {
+          ...baseData,
+          teacher_id: assigned_teacher_id, // Map legacy field to current field
+          created_by: profile?.id
+        };
+
         // Create new trial lesson
         const { error } = await supabase
-          .from('trial_lessons')
-          .insert([{
-            ...submitData,
-            created_by: profile?.id
-          }]);
+          .from('trial_appointments')
+          .insert([dbData]);
 
         if (error) {
           toast.error('Failed to create trial lesson', { description: error.message });

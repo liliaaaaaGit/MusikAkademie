@@ -14,9 +14,15 @@ import { DeleteStudentConfirmationModal } from '@/components/modals/DeleteStuden
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { ContractDetailsModal } from '@/components/modals/ContractDetailsModal';
+import { Navigate } from 'react-router-dom';
+import { StudentCardView } from './StudentCardView';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { TeacherMobileInfoBox } from './TeacherMobileInfoBox';
 
 export function StudentsTab() {
-  const { profile, isAdmin } = useAuth();
+  const { profile, isAdmin, user } = useAuth();
+  const isMobile = useIsMobile();
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +33,9 @@ export function StudentsTab() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractModalLoading, setContractModalLoading] = useState(false);
+  const [contractModalData, setContractModalData] = useState(null as import('@/lib/supabase').Contract | null);
 
   // Memoize current teacher lookup
   const currentTeacher = useMemo(() => 
@@ -47,7 +56,7 @@ export function StudentsTab() {
         .select(`
           *,
           teacher:teachers(id, name, instrument),
-          contract:contracts!students_contract_id_fkey(id, contract_variant_id, status, attendance_count, contract_variant:contract_variants(name, total_lessons))
+          contract:contracts!students_contract_id_fkey(id, contract_variant_id, status, attendance_count, discount_ids, custom_discount_percent, contract_variant:contract_variants(name, total_lessons))
         `)
         .order('name', { ascending: true });
 
@@ -193,6 +202,28 @@ export function StudentsTab() {
     return isAdmin;
   };
 
+  const handleShowContract = async (student: Student) => {
+    setContractModalOpen(true);
+    setContractModalLoading(true);
+    setContractModalData(null);
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('student_id', student.id)
+        .single();
+      if (error || !data) {
+        setContractModalData(null);
+      } else {
+        setContractModalData(data);
+      }
+    } catch (e) {
+      setContractModalData(null);
+    } finally {
+      setContractModalLoading(false);
+    }
+  };
+
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.instrument.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -214,8 +245,60 @@ export function StudentsTab() {
     );
   }
 
+  console.log('Current user:', user);
+
   return (
     <div className="h-full flex flex-col space-y-8">
+      {profile?.role === 'teacher' && isMobile ? (
+        <>
+          <div className="w-full max-w-[600px] mx-auto px-2">
+            {/* Headline for teacher mobile view */}
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Schülerübersicht</h1>
+            {/* Filters */}
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <div className="flex flex-col gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Suchen nach Schülern, Instrumenten oder Lehrern..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Status</SelectItem>
+                      <SelectItem value="active">Aktiv</SelectItem>
+                      <SelectItem value="inactive">Inaktiv</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={instrumentFilter} onValueChange={setInstrumentFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Instrument" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Instrumente</SelectItem>
+                      {INSTRUMENTS.map(instrument => (
+                        <SelectItem key={instrument} value={instrument}>
+                          {instrument}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Card List */}
+            <StudentCardView students={filteredStudents} noOuterPadding />
+          </div>
+        </>
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Schüler</h1>
@@ -233,27 +316,6 @@ export function StudentsTab() {
           </Button>
         )}
       </div>
-
-      {/* Show info message for teachers */}
-      {!isAdmin && (
-        <Card className="bg-gray-50 border-gray-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <Info className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-800">
-                  Lehreransicht - Nur Lesen
-                </h3>
-                <p className="text-sm text-gray-700 mt-1">
-                  Sie können nur Ihre zugewiesenen Schüler anzeigen. Das Hinzufügen, Bearbeiten oder Löschen von Schülern ist nur für Administratoren möglich.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filters */}
       <Card>
@@ -314,7 +376,7 @@ export function StudentsTab() {
         </CardContent>
       </Card>
 
-      {/* Students Table */}
+          {/* Students Table or Card View */}
       <div className="flex-1 overflow-auto">
         <Card>
           <CardContent className="p-0">
@@ -384,8 +446,8 @@ export function StudentsTab() {
                                 Bearbeiten
                               </DropdownMenuItem>
                             )}
-                            {student.contract && (
-                              <DropdownMenuItem>
+                            {isAdmin && (
+                              <DropdownMenuItem onClick={() => handleShowContract(student)}>
                                 <FileText className="h-4 w-4 mr-2" />
                                 Vertrag anzeigen
                               </DropdownMenuItem>
@@ -421,6 +483,8 @@ export function StudentsTab() {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
 
       {/* Add Student Dialog - Only show for admins */}
       {isAdmin && (
@@ -473,6 +537,13 @@ export function StudentsTab() {
           student={deletingStudent}
         />
       )}
+
+      <ContractDetailsModal
+        open={contractModalOpen}
+        onClose={() => setContractModalOpen(false)}
+        contract={contractModalData}
+        loading={contractModalLoading}
+      />
     </div>
   );
 }

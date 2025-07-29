@@ -124,6 +124,13 @@ export function Sidebar() {
           >
             Datenschutzerklärung
           </Link>
+          <span className="mx-2 text-gray-300">|</span>
+          <Link 
+            to="/impressum" 
+            className="text-xs text-gray-500 underline hover:text-brand-primary hover:no-underline transition-colors"
+          >
+            Impressum
+          </Link>
         </div>
       </div>
     </div>

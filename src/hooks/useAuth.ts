@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase, Profile } from '@/lib/supabase';
+import { supabase, Profile, isSupabaseConfigured } from '@/lib/supabase';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
+    // Check if Supabase is properly configured
+    if (!isSupabaseConfigured) {
+      setConfigError(true);
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -87,6 +95,7 @@ export function useAuth() {
     user,
     profile,
     loading,
+    configError,
     signIn,
     signOut,
     isAdmin: profile?.role === 'admin',

@@ -69,7 +69,7 @@ export function MobileNavigation() {
             alt="MAM Logo" 
             className="h-10 w-auto"
           />
-          <div className="flex flex-col">
+          <div className="hidden sm:flex flex-col">
             <h1 className="text-lg font-bold text-gray-900 leading-tight">
               MAM
             </h1>

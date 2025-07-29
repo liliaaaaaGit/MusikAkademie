@@ -81,7 +81,7 @@ export function StudentCountTooltip({ teacherId, studentCount }: StudentCountToo
             <span className="ml-2 text-sm text-gray-500">Lade Schüler...</span>
           </div>
         ) : students.length > 0 ? (
-          <ScrollArea className="max-h-64">
+          <ScrollArea className="max-h-80 overflow-y-auto">
             <div className="p-2 space-y-1">
               {students.map((student, index) => (
                 <div

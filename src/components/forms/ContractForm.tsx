@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ReplaceContractConfirmationModal } from '@/components/modals/ReplaceContractConfirmationModal';
 import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
 
 interface ContractFormProps {
   contract?: Contract;
@@ -47,6 +48,11 @@ const deepCopy = <T,>(obj: T): T => {
   return obj;
 };
 
+// Helper to convert JS array to Postgres array string
+function toPostgresArray(arr: string[]): string {
+  return '{' + arr.map(id => `"${id}"`).join(',') + '}';
+}
+
 export function ContractForm({ contract, students, onSuccess, onCancel, initialStudentId }: ContractFormProps) {
   const { profile, isAdmin } = useAuth();
   
@@ -82,21 +88,24 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   });
   const [loading, setLoading] = useState(false);
 
-  // Filter students based on role - THIS IS THE KEY FIX
+  // Filter students based on role - FIXED: Only admins can edit contracts
   const availableStudents = useMemo(() => {
     if (isAdmin) {
       // Admins can see all students
       return students;
     } else if (profile?.role === 'teacher' && currentTeacher) {
-      // Teachers can only see their own students
+      // Teachers can only see their own students (read-only)
       return students.filter(s => s.teacher_id === currentTeacher.id);
     }
     return [];
   }, [isAdmin, profile, currentTeacher, students]);
 
-  // Filter contract categories to exclude "Sondervereinbarung"
+  // Filter contract categories to exclude "Sondervereinbarung" and "Diplomausbildung"
   const availableCategories = useMemo(() => {
-    return contractCategories.filter(category => category.name !== 'special_discount');
+    return contractCategories.filter(category => 
+      category.name !== 'special_discount' && 
+      category.name !== 'private_diploma'
+    );
   }, [contractCategories]);
 
   // Filter variants based on selected category
@@ -163,7 +172,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   const fetchContractData = async () => {
     try {
       // Fetch contract categories
-      const { data: categories, error: categoriesError } = await supabase
+      const { data: categoriesData, error: categoriesError } = await supabase
         .from('contract_categories')
         .select('*')
         .order('display_name');
@@ -173,14 +182,12 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
         return;
       }
 
-      // Fetch contract variants with category data
-      const { data: variants, error: variantsError } = await supabase
+      setContractCategories(categoriesData || []);
+
+      // Fetch contract variants
+      const { data: variantsData, error: variantsError } = await supabase
         .from('contract_variants')
-        .select(`
-          *,
-          contract_category:contract_categories(*)
-        `)
-        .eq('is_active', true)
+        .select('*')
         .order('name');
 
       if (variantsError) {
@@ -188,21 +195,20 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
         return;
       }
 
+      setContractVariants(variantsData || []);
+
       // Fetch contract discounts
-      const { data: discounts, error: discountsError } = await supabase
+      const { data: discountsData, error: discountsError } = await supabase
         .from('contract_discounts')
         .select('*')
-        .eq('is_active', true)
         .order('name');
 
       if (discountsError) {
-        toast.error('Fehler beim Laden der Ermäßigungen', { description: discountsError.message });
+        toast.error('Fehler beim Laden der Rabatte', { description: discountsError.message });
         return;
       }
 
-      setContractCategories(categories || []);
-      setContractVariants(variants || []);
-      setContractDiscounts(discounts || []);
+      setContractDiscounts(discountsData || []);
     } catch (error) {
       console.error('Error fetching contract data:', error);
       toast.error('Fehler beim Laden der Vertragsdaten');
@@ -210,119 +216,81 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   };
 
   const calculatePricing = async () => {
-    if (!formData.selectedVariantId) return;
+    if (!formData.selectedVariantId) {
+      setCalculatedPricing(null);
+      return;
+    }
 
     try {
-      // Create a copy of the selected discount IDs
-      let discountIdsToUse = [...formData.selectedDiscountIds];
-      
-      // If using custom discount, add the custom discount ID
-      if (useCustomDiscount && customDiscountPercent > 0) {
-        // Create a custom discount object
-        const customDiscount = {
+      const pricing = await calculateContractPrice(
+        formData.selectedVariantId,
+        formData.selectedDiscountIds.filter(id => id !== customDiscountId),
+        useCustomDiscount ? {
           id: customDiscountId,
           name: `Custom Discount (${customDiscountPercent}%)`,
           discount_percent: customDiscountPercent,
           conditions: 'manually assigned',
-          is_active: true
-        };
-        
-        // Add the custom discount ID to the list
-        if (!discountIdsToUse.includes(customDiscountId)) {
-          discountIdsToUse.push(customDiscountId);
-        }
-        
-        // Calculate pricing with the custom discount
-        const pricing = await calculateContractPrice(
-          formData.selectedVariantId,
-          discountIdsToUse,
-          customDiscount
-        );
-        
+          is_active: true,
+          created_at: new Date().toISOString()
+        } : undefined
+      );
         setCalculatedPricing(pricing);
-      } else {
-        // Calculate pricing without custom discount
-        const pricing = await calculateContractPrice(
-          formData.selectedVariantId,
-          discountIdsToUse
-        );
-        
-        setCalculatedPricing(pricing);
-      }
     } catch (error) {
       console.error('Error calculating pricing:', error);
-      toast.error('Fehler beim Berechnen des Preises');
+      setCalculatedPricing(null);
     }
   };
 
-  const performContractSave = async () => {
-    if (!selectedCategory) {
-      throw new Error('Vertragskategorie nicht gefunden');
-    }
-
-    // Prepare contract data with legacy type mapping
-    const contractData: any = {
+  const handleSave = async () => {
+    const loadingToast = toast.loading('Speichere Vertrag...');
+    // Prepare contractData from form state
+    const discountIds = formData.selectedDiscountIds.filter(id => id !== customDiscountId);
+    const contractData = {
       student_id: formData.student_id,
-      type: getLegacyContractType(selectedCategory.name), // Use legacy type mapping
+      type: getLegacyContractType(selectedCategory?.name || ''),
       contract_variant_id: formData.selectedVariantId,
       status: formData.status,
-      updated_at: new Date().toISOString()
+      discount_ids: discountIds.length > 0 ? discountIds : null,
+      custom_discount_percent: useCustomDiscount && customDiscountPercent > 0 
+        ? customDiscountPercent 
+        : null,
+      payment_type: calculatedPricing?.payment_type || null
     };
-
-    // Add discount IDs if any are selected (excluding custom discount)
-    if (formData.selectedDiscountIds.length > 0) {
-      // Filter out the custom discount ID since it's not a real UUID
-      const validDiscountIds = formData.selectedDiscountIds.filter(id => id !== customDiscountId);
-      
-      contractData.discount_ids = validDiscountIds.length > 0 ? validDiscountIds : null;
-    } else {
-      contractData.discount_ids = null;
-    }
-
-    // Add pricing information
-    contractData.final_price = calculatedPricing?.final_monthly_price || calculatedPricing?.final_one_time_price || null;
-    contractData.payment_type = calculatedPricing?.payment_type || null;
-
-    // Add custom discount percentage if applicable
-    if (useCustomDiscount && customDiscountPercent > 0) {
-      contractData.custom_discount_percent = customDiscountPercent;
-    } else {
-      contractData.custom_discount_percent = null;
-    }
-
-    if (contract) {
-      // Update existing contract
-      const { error } = await supabase
-        .from('contracts')
-        .update(contractData)
-        .eq('id', contract.id);
-
+    try {
+      // 1. Atomic save and sync in one backend transaction
+      const { data: result, error } = await supabase.rpc('atomic_save_and_sync_contract', {
+        contract_data: contractData,
+        is_update: !!contract,
+        contract_id_param: contract?.id || null
+      });
       if (error) {
-        throw error;
+        console.error('Save error:', error);
+        throw new Error(error.message || 'Datenbankfehler aufgetreten');
       }
-
-      toast.success('Vertrag erfolgreich aktualisiert');
-    } else {
-      // Create new contract
-      const { data: newContract, error } = await supabase
+      if (!result?.success || !result.contract_id) {
+        throw new Error(result?.message || 'Speichern fehlgeschlagen');
+      }
+      // 2. Refetch the updated contract from Supabase
+      const { data: updatedContract, error: fetchError } = await supabase
         .from('contracts')
-        .insert([contractData])
-        .select()
+        .select('*, lessons(*)')
+        .eq('id', result.contract_id)
         .single();
-
-      if (error) {
-        throw error;
+      if (fetchError || !updatedContract) {
+        throw new Error(fetchError?.message || 'Fehler beim Laden des aktualisierten Vertrags');
       }
-
-      // Update student's contract reference
-      await supabase
-        .from('students')
-        .update({
-          contract_id: newContract.id
-        })
-        .eq('id', formData.student_id);
-
-      toast.success('Vertrag erfolgreich erstellt');
+      // 3. Show success message
+      toast.success(result.message, { id: loadingToast });
+      // 4. Show any backend warnings
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        result.warnings.forEach((warning: string) => toast("Warnung: " + warning));
+      }
+      // 5. Let parent handle UI refresh
+      onSuccess?.();
+    } catch (error) {
+      console.error('Contract save failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      toast.error(`Speichern des Vertrags fehlgeschlagen: ${errorMessage}`, { id: loadingToast });
     }
   };
 
@@ -359,14 +327,11 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
         }
       }
 
-      // Additional validation for teachers - ensure they can only create contracts for their students
-      if (profile?.role === 'teacher' && currentTeacher) {
-        const selectedStudent = availableStudents.find(s => s.id === formData.student_id);
-        if (!selectedStudent || selectedStudent.teacher_id !== currentTeacher.id) {
-          toast.error('Sie können nur Verträge für Ihre eigenen Schüler erstellen');
+      // FIXED: Only admins can create/edit contracts
+      if (!isAdmin) {
+        toast.error('Nur Administratoren können Verträge erstellen und bearbeiten');
           setLoading(false);
           return;
-        }
       }
 
       // Check for existing active contract (for new contracts only)
@@ -436,8 +401,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       }
 
       // Perform the actual contract save
-      await performContractSave();
-      onSuccess();
+      await handleSave();
     } catch (error) {
       console.error('Error saving contract:', error);
       toast.error('Fehler beim Speichern des Vertrags', { 
@@ -481,141 +445,100 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
 
   const handleCustomDiscountToggle = (checked: boolean) => {
     setUseCustomDiscount(checked);
-    
-    // If unchecking, remove custom discount from selected discounts
     if (!checked) {
+      setCustomDiscountPercent(0);
+      // Remove custom discount from selected discounts
       setFormData(prev => ({
         ...prev,
         selectedDiscountIds: prev.selectedDiscountIds.filter(id => id !== customDiscountId)
       }));
+    } else {
+      // Add custom discount to selected discounts
+      if (!formData.selectedDiscountIds.includes(customDiscountId)) {
+        setFormData(prev => ({
+          ...prev,
+          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+        }));
+      }
     }
   };
 
   const handleCustomDiscountChange = (value: string) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue)) {
-      setCustomDiscountPercent(0);
-    } else {
-      // Clamp value between 0 and 100
-      setCustomDiscountPercent(Math.min(Math.max(numValue, 0), 100));
-    }
+    const percent = parseFloat(value) || 0;
+    setCustomDiscountPercent(percent);
   };
 
-  const getGroupTypeDisplay = (groupType: string) => {
-    switch (groupType) {
-      case 'single':
-        return 'Einzelunterricht';
-      case 'group':
-        return 'Gruppenunterricht';
-      case 'duo':
-        return 'Zweierunterricht';
-      case 'varies':
-        return 'Variiert';
-      default:
-        return groupType;
-    }
-  };
-
-  const formatPrice = (price: number | null | undefined) => {
-    if (!price) return '-';
-    return `${price.toFixed(2)}€`;
-  };
-
-  // Function to translate discount names to German
-  const getDiscountNameGerman = (name: string) => {
-    switch (name) {
-      case 'Family/Student Discount':
-        return 'Familien-/Studentenermäßigung';
-      case 'Combo Booking (2 blocks)':
-        return 'Kombi-Buchung (2 Blöcke)';
-      case 'Combo Booking (3 blocks)':
-        return 'Kombi-Buchung (3 Blöcke)';
-      case 'Half-Year Prepayment':
-        return 'Halbjahres-Vorauszahlung';
-      case 'Full-Year Prepayment':
-        return 'Ganzjahres-Vorauszahlung';
-      default:
-        return name;
-    }
-  };
-
-  // Function to translate discount conditions to German
-  const getDiscountConditionsGerman = (conditions: string) => {
-    switch (conditions) {
-      case 'manually assignable':
-        return 'manuell zuweisbar';
-      case 'applies if 2 active blocks exist':
-        return 'gilt bei 2 aktiven Blöcken';
-      case 'applies if 3+ active blocks exist':
-        return 'gilt bei 3+ aktiven Blöcken';
-      case 'applies if paid upfront':
-        return 'gilt bei Vorauszahlung';
-      default:
-        return conditions;
-    }
-  };
-
-  const selectedStudent = availableStudents.find(s => s.id === formData.student_id);
+  // FIXED: Only show form for admins
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">Nur Administratoren können Verträge erstellen und bearbeiten.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-h-[85vh] overflow-y-auto">
+    <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Student Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Schüler auswählen</CardTitle>
+          </CardHeader>
+          <CardContent>
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Vertragsdetails</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="student">Schüler *</Label>
               <Select 
                 value={formData.student_id} 
                 onValueChange={(value) => handleChange('student_id', value)}
-                required
+                  disabled={loading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Schüler auswählen..." />
+                    <SelectValue placeholder="Schüler auswählen" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableStudents.map((student) => (
                     <SelectItem key={student.id} value={student.id}>
-                      {student.name} - {student.instrument}
-                      {student.teacher && ` (${student.teacher.name})`}
+                        <div className="flex items-center gap-2">
+                          <span>{student.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {student.instrument}
+                          </Badge>
+                          {student.teacher && (
+                            <Badge variant="secondary" className="text-xs">
+                              {student.teacher.name}
+                            </Badge>
+                          )}
+                        </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {/* Show info message for teachers */}
-              {profile?.role === 'teacher' && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Sie sehen nur Ihre zugewiesenen Schüler
-                </p>
-              )}
             </div>
-
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select 
-                value={formData.status} 
-                onValueChange={(value) => handleChange('status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="completed">Abgeschlossen</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
+          </CardContent>
+        </Card>
 
+        {/* Contract Type Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Vertragstyp auswählen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
             <div>
               <Label htmlFor="category">Vertragskategorie *</Label>
               <Select 
                 value={formData.selectedCategoryId} 
                 onValueChange={(value) => handleChange('selectedCategoryId', value)}
-                required
+                  disabled={loading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Kategorie auswählen..." />
+                    <SelectValue placeholder="Kategorie auswählen" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableCategories.map((category) => (
@@ -627,140 +550,103 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
               </Select>
             </div>
 
+              {formData.selectedCategoryId && (
             <div>
               <Label htmlFor="variant">Vertragsvariante *</Label>
               <Select 
                 value={formData.selectedVariantId} 
                 onValueChange={(value) => handleChange('selectedVariantId', value)}
-                required
-                disabled={!formData.selectedCategoryId}
+                    disabled={loading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Variante auswählen..." />
+                      <SelectValue placeholder="Variante auswählen" />
                 </SelectTrigger>
                 <SelectContent>
                   {filteredVariants.map((variant) => (
                     <SelectItem key={variant.id} value={variant.id}>
-                      {variant.name}
+                          <div className="flex items-center justify-between w-full">
+                            <span>{variant.name}</span>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              {variant.monthly_price && (
+                                <span>{variant.monthly_price}€/Monat</span>
+                              )}
+                              {variant.one_time_price && (
+                                <span>{variant.one_time_price}€ einmalig</span>
+                              )}
+                            </div>
+                          </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+              )}
           </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Contract Information Card */}
-        {selectedVariant && (
+        {/* Pricing Display */}
+        {calculatedPricing && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Vertragsinformationen</CardTitle>
+              <CardTitle>Preisberechnung</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-600">Kategorie:</span>
-                  <p>{selectedCategory?.display_name}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600">Variante:</span>
-                  <p>{selectedVariant.name}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600">Unterrichtsform:</span>
-                  <p>{getGroupTypeDisplay(selectedVariant.group_type)}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600">Laufzeit:</span>
-                  <p>{getContractDuration(selectedVariant)}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600">Gesamtstunden:</span>
-                  <p>{selectedVariant.total_lessons || '-'} Stunden</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600">Stundenlänge:</span>
-                  <p>{selectedVariant.session_length_minutes ? `${selectedVariant.session_length_minutes} min` : 'Variiert'}</p>
-                </div>
-              </div>
-
-              {/* Pricing Information */}
-              <Separator />
+            <CardContent>
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Preisübersicht</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-600">Grundpreis:</span>
-                    <p>
-                      {selectedVariant.monthly_price 
-                        ? `${formatPrice(selectedVariant.monthly_price)} / Monat`
-                        : `${formatPrice(selectedVariant.one_time_price)} einmalig`
-                      }
-                    </p>
-                  </div>
-                  {calculatedPricing && calculatedPricing.total_discount_percent > 0 && (
-                    <div>
-                      <span className="font-medium text-gray-600">Ermäßigung:</span>
-                      <p className="text-green-600">-{calculatedPricing.total_discount_percent}%</p>
-                    </div>
-                  )}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Basispreis:</span>
+                  <span className="font-medium">
+                    {(calculatedPricing.base_monthly_price || calculatedPricing.base_one_time_price)?.toFixed(2)}€
+                    {calculatedPricing.payment_type === 'monthly' ? ' / Monat' : ' einmalig'}
+                  </span>
                 </div>
-                {calculatedPricing && (
-                  <div className="bg-brand-primary/5 p-3 rounded-lg">
-                    <span className="font-medium text-brand-primary">Endpreis:</span>
-                    <p className="text-lg font-bold text-brand-primary">
-                      {calculatedPricing.payment_type === 'monthly'
-                        ? `${formatPrice(calculatedPricing.final_monthly_price)} / Monat`
-                        : `${formatPrice(calculatedPricing.final_one_time_price)} einmalig`
-                      }
-                    </p>
+                
+                {calculatedPricing.total_discount_percent > 0 && (
+                  <div className="flex justify-between items-center text-green-600">
+                    <span>Rabatt:</span>
+                    <span className="font-medium">-{calculatedPricing.total_discount_percent}%</span>
                   </div>
                 )}
+                
+                <Separator />
+                
+                <div className="flex justify-between items-center text-lg font-semibold">
+                  <span>Endpreis:</span>
+                  <span className="text-brand-primary">
+                    {calculatedPricing.final_monthly_price?.toFixed(2) || calculatedPricing.final_one_time_price?.toFixed(2)}€
+                    {calculatedPricing.payment_type === 'monthly' ? ' / Monat' : ' einmalig'}
+                  </span>
+                </div>
               </div>
-
-              {selectedStudent && (
-                <>
-                  <Separator />
-                  <div>
-                    <span className="font-medium text-gray-600">Schüler:</span>
-                    <p>{selectedStudent.name} - {selectedStudent.instrument}</p>
-                  </div>
-                </>
-              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Discounts Section */}
-        {(contractDiscounts.length > 0 || isAdmin) && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Ermäßigungen</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Discounts */}
+        {contractDiscounts.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Rabatte</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
               {contractDiscounts.map((discount) => (
-                <div key={discount.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                  <div key={discount.id} className="flex items-start space-x-3">
                   <Checkbox
                     id={discount.id}
                     checked={formData.selectedDiscountIds.includes(discount.id)}
                     onCheckedChange={(checked) => handleDiscountToggle(discount.id, checked as boolean)}
-                    className="mt-1"
+                      disabled={loading}
                   />
                   <div className="flex-1 min-w-0">
                     <label htmlFor={discount.id} className="text-sm font-medium text-gray-900 cursor-pointer">
-                      {getDiscountNameGerman(discount.name)}
+                          {discount.name}
                     </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        -{discount.discount_percent}%
-                      </Badge>
-                      {discount.conditions && (
-                        <span className="text-xs text-gray-500">{getDiscountConditionsGerman(discount.conditions)}</span>
-                      )}
-                    </div>
+                        <p className="text-sm text-gray-500">{discount.conditions || `-${discount.discount_percent}%`}</p>
                   </div>
                 </div>
               ))}
               
-              {/* Custom Discount Option (Admin Only) */}
               {isAdmin && (
                 <div className="flex items-start space-x-3 p-3 border rounded-lg">
                   <Checkbox
@@ -793,43 +679,39 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
                         </p>
                       </div>
                     )}
-                    {useCustomDiscount && customDiscountPercent > 0 && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                          -{customDiscountPercent}%
-                        </Badge>
-                        <span className="text-xs text-gray-500">manuell zugewiesen</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
-
-        {/* Warning for existing contracts */}
-        {!contract && selectedStudent?.contract_id && !isReplacementConfirmed && (
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="pt-6">
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-yellow-800">
-                    Schüler hat bereits einen Vertrag
-                  </h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Dieser Schüler hat bereits einen aktiven Vertrag. Das Erstellen eines neuen Vertrags ersetzt den bestehenden.
-                  </p>
-                </div>
               </div>
             </CardContent>
           </Card>
         )}
+
+        {/* Contract Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Vertragsstatus</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => handleChange('status', value)}
+                disabled={loading}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Aktiv</SelectItem>
+                  <SelectItem value="completed">Abgeschlossen</SelectItem>
+                  <SelectItem value="cancelled">Storniert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex justify-end space-x-2 pt-6 border-t">
           <Button 

@@ -63,7 +63,7 @@ export function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col md:flex-row bg-gray-50 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col md:flex-row bg-gray-50 sm:overflow-hidden overflow-auto">
       {/* Mobile Navigation - Only visible on small screens */}
       <div className="md:hidden">
         <MobileNavigation />

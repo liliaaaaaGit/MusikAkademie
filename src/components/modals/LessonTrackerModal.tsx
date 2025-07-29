@@ -12,6 +12,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar, Save, X, Clock, CheckCircle, AlertCircle, FileText, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
 interface LessonTrackerModalProps {
   contract: Contract;
@@ -25,6 +28,10 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedLessons, setEditedLessons] = useState<Record<string, { date: string; comment: string; is_available: boolean }>>({});
+
+  const { profile } = useAuth();
+  const isMobile = useIsMobile();
+  const isAdminOrTeacher = profile?.role === 'admin' || profile?.role === 'teacher';
 
   useEffect(() => {
     if (open && contract) {
@@ -90,9 +97,13 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   };
 
   const handleSave = async () => {
+    // Blur the active element to ensure all changes are registered
+    if (typeof window !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setSaving(true);
     try {
-      // Prepare updates - only update lessons that have changes
+      // FIXED: Prepare updates with proper contract_id preservation
       const updates = Object.entries(editedLessons)
         .map(([lessonId, data]) => {
           const originalLesson = lessons.find(l => l.id === lessonId);
@@ -108,6 +119,7 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
           
           return {
             id: lessonId,
+            contract_id: originalLesson.contract_id, // FIXED: Always include contract_id
             date: data.date || null,
             comment: data.comment || null,
             is_available: data.is_available,
@@ -122,62 +134,81 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
         return;
       }
 
-      // Update lessons one by one to prevent conflicts
-      let successCount = 0;
-      for (const update of updates) {
-        try {
-          const { error } = await supabase
-            .from('lessons')
-            .update({ 
-              date: update.date, 
-              comment: update.comment,
-              is_available: update.is_available,
-              updated_at: update.updated_at 
-            })
-            .eq('id', update.id);
+      // FIXED: Use safe batch update function to prevent contract_id issues
+      const { data: batchResult, error: batchError } = await supabase.rpc('batch_update_lessons', {
+        updates: updates
+      });
 
-          if (error) {
-            console.error('Error updating lesson:', error);
-            toast.error(`Fehler beim Aktualisieren der Stunde ${update.id}`, { 
-              description: error.message 
+      if (batchError) {
+        console.error('Batch update error:', batchError);
+        toast.error('Fehler beim Speichern der Stunden', { 
+          description: batchError.message 
             });
-          } else {
-            successCount++;
+        setSaving(false);
+        return;
           }
-        } catch (error) {
-          console.error('Error updating lesson:', error);
-          toast.error(`Fehler beim Aktualisieren der Stunde ${update.id}`);
-        }
-      }
 
-      if (successCount > 0) {
-        // Call the manual fix function to ensure contract attendance is correct
+      // Log the batch result for debugging
+      console.log('Batch update result:', batchResult);
+
+      // FIXED: Call the enhanced sync function to ensure contract attendance is correct
         try {
-          const { data: fixResult, error: fixError } = await supabase.rpc('fix_contract_attendance', {
+        const { data: syncResult, error: syncError } = await supabase.rpc('sync_contract_data', {
             contract_id_param: contract.id
           });
 
-          if (fixError) {
-            console.error('Error fixing contract attendance:', fixError);
+        if (syncError) {
+          console.error('Error syncing contract data:', syncError);
+          // Log error but don't fail the operation
+          await supabase.rpc('log_contract_error', {
+            operation: 'lesson_tracking_sync',
+            contract_id_param: contract.id,
+            error_message: syncError.message
+          });
+        } else {
+          console.log('Contract data synced:', syncResult);
           }
         } catch (error) {
-          console.error('Error calling fix function:', error);
+        console.error('Error calling sync function:', error);
+        // Log error but don't fail the operation
+        await supabase.rpc('log_contract_error', {
+          operation: 'lesson_tracking_sync',
+          contract_id_param: contract.id,
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
         }
 
         // Force refresh the lessons to get updated data
         await fetchLessons();
         
-        toast.success(`${successCount} Stunde${successCount !== 1 ? 'n' : ''} erfolgreich aktualisiert`);
+      toast.success(`${updates.length} Stunde${updates.length !== 1 ? 'n' : ''} erfolgreich aktualisiert`);
         
         // Call onUpdate to refresh the parent component
         onUpdate();
         
         // Close the modal
         onClose();
-      }
     } catch (error) {
       console.error('Error updating lessons:', error);
-      toast.error('Fehler beim Aktualisieren der Stunden');
+      
+      // Enhanced error reporting
+      let errorMessage = 'Fehler beim Aktualisieren der Stunden';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
+      
+      // Log the error for debugging
+      try {
+        await supabase.rpc('log_contract_error', {
+          operation: 'lesson_tracking_save',
+          contract_id_param: contract.id,
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } catch (logError) {
+        console.error('Error logging contract error:', logError);
+      }
     } finally {
       setSaving(false);
     }
@@ -284,6 +315,121 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
         return 'Unbekannt';
     }
   };
+
+  // Mobile accordion view for Admin/Teacher
+  if (isMobile && isAdminOrTeacher) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg w-full p-0 overflow-y-auto max-h-[80vh]">
+          <div className="p-4">
+            {/* Contract Overview Card (reuse structure from ContractDetailsModal) */}
+            <div className="bg-white rounded-lg shadow-md border border-gray-100 p-4 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-lg font-semibold truncate">{contract.student?.name || '-'}</div>
+                <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
+                  {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
+                </Badge>
+              </div>
+              <div className="flex flex-col gap-1 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Typ:</span>
+                  <span>{contract.contract_variant?.name || contract.type || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Instrument:</span>
+                  <span>{contract.student?.instrument || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Lehrer:</span>
+                  <span>{contract.student?.teacher?.name || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Fortschritt:</span>
+                  <span>{contract.attendance_count || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Lessons Accordion */}
+            <Accordion type="single" collapsible className="w-full">
+              {lessons.map((lesson) => {
+                const editedData = editedLessons[lesson.id] || { date: '', comment: '', is_available: true };
+                const status = getLessonStatus(lesson);
+                const isComplete = editedData.is_available && editedData.date;
+                // If lesson is undefined, skip rendering
+                if (!lesson) return null;
+                return (
+                  <AccordionItem key={lesson.id} value={lesson.id} className="mb-2 border rounded-lg">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2 select-none">
+                        {getStatusIcon(status)}
+                        <span className="font-medium">Stunde {lesson.lesson_number}</span>
+                      </div>
+                      <AccordionTrigger className="flex items-center gap-2 px-0 py-0 w-auto h-auto ml-2">
+                        <span className="text-sm text-gray-600">{editedData.date || 'Kein Datum'}</span>
+                      </AccordionTrigger>
+                    </div>
+                    <AccordionContent className="px-4 pb-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={editedData.is_available}
+                            onCheckedChange={(checked) => handleAvailabilityToggle(lesson.id, checked as boolean)}
+                            className="focus:ring-brand-primary"
+                          />
+                          <span className="text-sm text-gray-600">
+                            {editedData.is_available ? 'Verfügbar' : 'Nicht verfügbar'}
+                          </span>
+                        </div>
+                        <div>
+                          <Label>Datum</Label>
+                          <Input
+                            type="date"
+                            value={editedData.date}
+                            onChange={(e) => handleLessonChange(lesson.id, 'date', e.target.value)}
+                            className="w-full focus:ring-brand-primary focus:border-brand-primary"
+                            max={format(new Date(), 'yyyy-MM-dd')}
+                            disabled={!editedData.is_available}
+                          />
+                        </div>
+                        <div>
+                          <Label>Notizen</Label>
+                          <Textarea
+                            value={editedData.comment}
+                            onChange={(e) => handleLessonChange(lesson.id, 'comment', e.target.value)}
+                            placeholder={editedData.is_available ? "Notizen hinzufügen (z.B. Hausaufgaben gegeben, Stunde verpasst, etc.)" : "Stunde nicht verfügbar"}
+                            className="min-h-[60px] resize-none focus:ring-brand-primary focus:border-brand-primary"
+                            rows={2}
+                            disabled={!editedData.is_available}
+                          />
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <Button 
+                            onClick={handleSave} 
+                            disabled={saving || loading}
+                            className="bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary w-full"
+                          >
+                            {saving ? 'Speichern...' : 'Speichern'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={onClose}
+                            className="w-full"
+                          >
+                            Schließen
+                          </Button>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              }).filter(Boolean)}
+            </Accordion>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

@@ -75,10 +75,15 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     selectedDiscountIds: [] as string[]
   });
   const [loading, setLoading] = useState(false);
+  // Track when all contract data is loaded
+  const [contractDataLoaded, setContractDataLoaded] = useState(false);
 
-  // Filter contract categories to exclude "Sondervereinbarung"
+  // Filter contract categories to exclude "Sondervereinbarung" and "Diplomausbildung"
   const availableCategories = useMemo(() => {
-    return contractCategories.filter(category => category.name !== 'special_discount');
+    return contractCategories.filter(category => 
+      category.name !== 'special_discount' && 
+      category.name !== 'private_diploma'
+    );
   }, [contractCategories]);
 
   // Filter variants based on selected category
@@ -106,6 +111,28 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     }
   }, [student]);
 
+  // Initialize contract data when editing existing student
+  useEffect(() => {
+    if (student?.contract && contractVariants.length > 0 && contractDiscounts.length > 0) {
+      const variant = contractVariants.find(v => v.id === student.contract?.contract_variant_id);
+      if (variant) {
+        // Ensure all discount IDs are strings for comparison
+        const discountIds = (student.contract?.discount_ids || []).map(String);
+        setFormData(prev => ({
+          ...prev,
+          selectedCategoryId: variant.contract_category_id,
+          selectedVariantId: variant.id,
+          selectedDiscountIds: discountIds
+        }));
+        console.log('DEBUG: setFormData for edit', {
+          selectedCategoryId: variant.contract_category_id,
+          selectedVariantId: variant.id,
+          selectedDiscountIds: discountIds
+        });
+      }
+    }
+  }, [student, contractVariants, contractDiscounts]);
+
   // Initialize custom discount if student's contract has one
   useEffect(() => {
     if (student?.contract?.custom_discount_percent) {
@@ -118,6 +145,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
           ...prev,
           selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
         }));
+        console.log('DEBUG: setFormData for custom discount', {
+          selectedDiscountIds: [...prev.selectedDiscountIds, customDiscountId]
+        });
       }
     }
   }, [student]);
@@ -179,6 +209,12 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       setContractCategories(categories || []);
       setContractVariants(variants || []);
       setContractDiscounts(discounts || []);
+      console.log('DEBUG: Contract data loaded:', {
+        categories,
+        variants,
+        discounts
+      });
+      setContractDataLoaded(true);
     } catch (error) {
       console.error('Error fetching contract data:', error);
     }
@@ -193,13 +229,14 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       
       // If using custom discount, add the custom discount ID
       if (useCustomDiscount && customDiscountPercent > 0) {
-        // Create a custom discount object
-        const customDiscount = {
+        // Create a custom discount object that matches ContractDiscount interface
+        const customDiscount: ContractDiscount = {
           id: customDiscountId,
           name: `Custom Discount (${customDiscountPercent}%)`,
           discount_percent: customDiscountPercent,
           conditions: 'manually assigned',
-          is_active: true
+          is_active: true,
+          created_at: new Date().toISOString()
         };
         
         // Add the custom discount ID to the list
@@ -288,52 +325,43 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       throw new Error('Vertragskategorie nicht gefunden');
     }
 
-    // Create new contract with legacy type mapping
-    const contractData: any = {
+    // FIXED: Prepare contract data for safe save
+    const contractData = {
       student_id: studentId,
-      type: getLegacyContractType(selectedCategory.name), // Use legacy type mapping
+      type: getLegacyContractType(selectedCategory.name),
       contract_variant_id: formData.selectedVariantId,
-      status: 'active'
+      status: 'active',
+      // FIXED: Handle discount IDs properly
+      discount_ids: formData.selectedDiscountIds.filter(id => id !== customDiscountId).length > 0 
+        ? formData.selectedDiscountIds.filter(id => id !== customDiscountId) 
+        : null,
+      // FIXED: Handle custom discount properly
+      custom_discount_percent: useCustomDiscount && customDiscountPercent > 0 
+        ? customDiscountPercent 
+        : null,
+      // FIXED: Always update pricing information
+      final_price: calculatedPricing?.final_monthly_price || calculatedPricing?.final_one_time_price || null,
+      payment_type: calculatedPricing?.payment_type || null
     };
 
-    // Add discount IDs if any are selected (excluding custom discount)
-    if (formData.selectedDiscountIds.length > 0) {
-      // Filter out the custom discount ID since it's not a real UUID
-      const validDiscountIds = formData.selectedDiscountIds.filter(id => id !== customDiscountId);
-      
-      contractData.discount_ids = validDiscountIds.length > 0 ? validDiscountIds : null;
-    } else {
-      contractData.discount_ids = null;
+    // FIXED: Use safe save function with comprehensive error handling
+    const { data: saveResult, error: saveError } = await supabase.rpc('safe_save_contract', {
+      contract_data: contractData,
+      is_update: !!student?.contract,
+      contract_id_param: student?.contract?.id || null
+    });
+
+    if (saveError) {
+      console.error('Safe save error:', saveError);
+      throw new Error(`Database error: ${saveError.message}`);
     }
 
-    // Add pricing information
-    contractData.final_price = calculatedPricing?.final_monthly_price || calculatedPricing?.final_one_time_price || null;
-    contractData.payment_type = calculatedPricing?.payment_type || null;
-
-    // Add custom discount percentage if applicable
-    if (useCustomDiscount && customDiscountPercent > 0) {
-      contractData.custom_discount_percent = customDiscountPercent;
-    } else {
-      contractData.custom_discount_percent = null;
+    if (!saveResult.success) {
+      console.error('Save failed:', saveResult);
+      throw new Error(saveResult.error || 'Unknown save error');
     }
 
-    const { data: newContract, error: contractError } = await supabase
-      .from('contracts')
-      .insert([contractData])
-      .select()
-      .single();
-
-    if (contractError) {
-      throw contractError;
-    }
-
-    // Update student's contract reference
-    await supabase
-      .from('students')
-      .update({ contract_id: newContract.id })
-      .eq('id', studentId);
-
-    return newContract;
+    return { id: saveResult.contract_id };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -406,8 +434,11 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
         toast.success('Schüler erfolgreich erstellt');
       }
 
-      // Create contract if variant is selected
+      // FIXED: Handle contract creation/update if variant is selected
+      let contractId: string | null = null;
       if (formData.selectedVariantId && studentId && selectedCategory) {
+        // FIXED: For new students, check for existing contracts
+        if (!student) {
         // Check for existing active contract and handle replacement if needed
         if (!isReplacementConfirmed) {
           const { data: existingContracts, error: checkError } = await supabase
@@ -465,18 +496,34 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
             toast.error('Fehler beim Löschen des alten Vertrags', { description: deleteError.message });
             setLoading(false);
             return;
+            }
           }
         }
 
-        // Create new contract
+        // FIXED: Create or update contract
         try {
-          await performContractSave(studentId);
-          toast.success('Schüler und Vertrag erfolgreich erstellt');
+          const contractResult = await performContractSave(studentId);
+          contractId = contractResult.id;
+          // NEW: Update student with contract_id if contract was created
+          if (contractId) {
+            const { error: updateError } = await supabase
+              .from('students')
+              .update({ contract_id: contractId })
+              .eq('id', studentId);
+            if (updateError) {
+              throw updateError;
+            }
+          }
+          if (student) {
+            toast.success('Schüler und Vertrag erfolgreich aktualisiert');
+          } else {
+            toast.success('Schüler und Vertrag erfolgreich erstellt');
+          }
         } catch (contractError) {
-          console.error('Contract creation error:', contractError);
+          console.error('Contract creation/update error:', contractError);
           
           // Enhanced error reporting
-          let errorMessage = 'Unbekannter Fehler beim Erstellen des Vertrags';
+          let errorMessage = 'Unbekannter Fehler beim Erstellen/Aktualisieren des Vertrags';
           
           if (contractError && typeof contractError === 'object') {
             if ('message' in contractError) {
@@ -497,7 +544,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
             errorMessage = contractError.message;
           }
           
-          toast.error('Schüler wurde erstellt, aber Vertrag konnte nicht erstellt werden', { 
+          toast.error('Schüler wurde gespeichert, aber Vertrag konnte nicht erstellt/aktualisiert werden', { 
             description: errorMessage
           });
         }
@@ -651,6 +698,15 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
   const availableTeachers = profile?.role === 'teacher' && currentTeacher 
     ? [currentTeacher] 
     : teachers;
+
+  console.log('DEBUG: Render discounts section', {
+    contractDataLoaded,
+    contractDiscounts,
+    selectedVariantId: formData.selectedVariantId,
+    selectedDiscountIds: formData.selectedDiscountIds
+  });
+
+  console.log('DEBUG: student prop', student);
 
   return (
     <div className="max-h-[80vh] overflow-y-auto">
@@ -890,7 +946,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
             )}
 
             {/* Discounts Section */}
-            {(contractDiscounts.length > 0 || isAdmin) && formData.selectedVariantId && (
+            {contractDataLoaded && (contractDiscounts.length > 0 || isAdmin) && formData.selectedVariantId && !loading && (
               <div className="space-y-4">
                 <h4 className="text-base font-medium text-gray-900">Ermäßigungen</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -898,7 +954,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
                     <div key={discount.id} className="flex items-start space-x-3 p-3 border rounded-lg">
                       <Checkbox
                         id={discount.id}
-                        checked={formData.selectedDiscountIds.includes(discount.id)}
+                        checked={formData.selectedDiscountIds.map(String).includes(String(discount.id))}
                         onCheckedChange={(checked) => handleDiscountToggle(discount.id, checked as boolean)}
                         className="mt-1"
                       />

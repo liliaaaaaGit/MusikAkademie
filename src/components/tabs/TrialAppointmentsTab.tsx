@@ -13,6 +13,7 @@ import { TrialAppointmentForm } from '@/components/forms/TrialAppointmentForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { useLinkTeacherUserId } from '@/hooks/useLinkTeacherUserId';
 
 export function TrialAppointmentsTab() {
   const { profile, isAdmin } = useAuth();
@@ -23,6 +24,7 @@ export function TrialAppointmentsTab() {
   const [instrumentFilter, setInstrumentFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTrialAppointment, setEditingTrialAppointment] = useState<TrialAppointment | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   // Memoize current teacher lookup
   const currentTeacher = useMemo(() => 
@@ -31,20 +33,36 @@ export function TrialAppointmentsTab() {
   );
 
   useEffect(() => {
-    fetchTrialAppointments();
     fetchTeachers();
   }, []);
 
+  useEffect(() => {
+    if (profile && (isAdmin || currentTeacher)) {
+      fetchTrialAppointments();
+    }
+  }, [profile, isAdmin, currentTeacher]);
+
   const fetchTrialAppointments = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('trial_appointments')
         .select(`
           *,
           teacher:teachers(id, name, instrument),
           created_by_profile:profiles!trial_appointments_created_by_fkey(id, full_name)
-        `)
-        .order('created_at', { ascending: false });
+        `);
+
+      // Apply role-based filtering
+      if (profile?.role === 'teacher' && currentTeacher) {
+        // Teachers see:
+        // 1. Trial lessons assigned to themselves
+        // 2. All open trial lessons
+        // 3. Trial lessons they have accepted
+        query = query.or(`teacher_id.eq.${currentTeacher.id},status.eq.open`);
+      }
+      // Admins see everything (no additional filtering needed)
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         toast.error('Fehler beim Laden der Probestunden', { description: error.message });
@@ -566,6 +584,24 @@ export function TrialAppointmentsTab() {
             )}
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Message Notification */}
+      {message && (
+        <Card className="bg-gray-50 border-gray-200">
+          <CardContent className="pt-6">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <Info className="h-5 w-5 text-gray-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-800">
+                  {message}
+                </h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

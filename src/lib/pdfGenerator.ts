@@ -203,48 +203,7 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
 
-    // Base price
-    doc.setFont('helvetica', 'bold');
-    doc.text('Grundpreis:', leftColumn + 5, yPosition + 5);
-    doc.setFont('helvetica', 'normal');
-    
-    let basePrice = '';
-    if (contract.contract_variant?.monthly_price) {
-      basePrice = `${formatPrice(contract.contract_variant.monthly_price)} / Monat`;
-    } else if (contract.contract_variant?.one_time_price) {
-      basePrice = `${formatPrice(contract.contract_variant.one_time_price)} einmalig`;
-    } else {
-      basePrice = 'Nicht verfügbar';
-    }
-    doc.text(basePrice, leftColumn + 35, yPosition + 5);
-
-    // Final price
-    doc.setFont('helvetica', 'bold');
-    doc.text('Endpreis:', leftColumn + 5, yPosition + 15);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(237, 59, 113); // Brand color for final price
-    
-    let finalPrice = '';
-    if (contract.final_price && contract.payment_type) {
-      finalPrice = contract.payment_type === 'monthly' 
-        ? `${formatPrice(contract.final_price)} / Monat`
-        : `${formatPrice(contract.final_price)} einmalig`;
-    } else {
-      finalPrice = basePrice;
-    }
-    doc.text(finalPrice, leftColumn + 35, yPosition + 15);
-    doc.setTextColor(darkGray); // Reset color
-
-    // Payment type
-    doc.setFont('helvetica', 'bold');
-    doc.text('Zahlungsart:', rightColumn + 5, yPosition + 5);
-    doc.setFont('helvetica', 'normal');
-    const paymentType = contract.payment_type === 'monthly' ? 'Monatlich' : 'Einmalig';
-    doc.text(paymentType, rightColumn + 35, yPosition + 5);
-
-    yPosition += 40;
-
-    // Discounts Section (if any applied)
+    // Calculate all discounts first to get the total discount percentage
     const allDiscounts: ContractDiscount[] = [];
     
     // Add standard discounts if available
@@ -256,25 +215,102 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
     if (contract.custom_discount_percent && contract.custom_discount_percent > 0) {
       allDiscounts.push({
         id: 'custom-discount-pdf',
-        name: 'Benutzerdefinierte Ermäßigung',
+        name: `Benutzerdefinierte Ermäßigung (${contract.custom_discount_percent}%)`,
         discount_percent: contract.custom_discount_percent,
         conditions: 'manuell zugewiesen',
         is_active: true,
         created_at: ''
       });
     }
+
+    // Calculate total discount percentage
+    const totalDiscountPercent = allDiscounts.reduce((sum, discount) => sum + discount.discount_percent, 0);
+
+    // Calculate base price and discounted price
+    let basePriceValue = 0;
+    let basePrice = '';
+    let isMonthly = false;
+    
+    if (contract.contract_variant?.monthly_price) {
+      basePriceValue = contract.contract_variant.monthly_price;
+      basePrice = `${formatPrice(basePriceValue)} / Monat`;
+      isMonthly = true;
+    } else if (contract.contract_variant?.one_time_price) {
+      basePriceValue = contract.contract_variant.one_time_price;
+      basePrice = `${formatPrice(basePriceValue)} einmalig`;
+      isMonthly = false;
+    } else {
+      basePrice = 'Nicht verfügbar';
+    }
+
+    // Calculate discounted price
+    const discountedPriceValue = basePriceValue * (1 - totalDiscountPercent / 100);
+    const discountedPrice = basePriceValue > 0 
+      ? (isMonthly 
+          ? `${formatPrice(discountedPriceValue)} / Monat` 
+          : `${formatPrice(discountedPriceValue)} einmalig`)
+      : basePrice;
+
+    // Base price
+    doc.setFont('helvetica', 'bold');
+    doc.text('Grundpreis:', leftColumn + 5, yPosition + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(basePrice, leftColumn + 35, yPosition + 5);
+
+    // Show discount amount if applicable
+    if (totalDiscountPercent > 0 && basePriceValue > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ermäßigung:', rightColumn + 5, yPosition + 5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(34, 197, 94); // Green color for discount
+      doc.text(`-${totalDiscountPercent.toFixed(1)}%`, rightColumn + 35, yPosition + 5);
+      doc.setTextColor(darkGray);
+    } else {
+      // Show payment type on first line if no discount
+      doc.setFont('helvetica', 'bold');
+      doc.text('Zahlungsart:', rightColumn + 5, yPosition + 5);
+      doc.setFont('helvetica', 'normal');
+      const paymentType = isMonthly ? 'Monatlich' : 'Einmalig';
+      doc.text(paymentType, rightColumn + 35, yPosition + 5);
+    }
+
+    // Final discounted price (prominently displayed)
+    doc.setFont('helvetica', 'bold');
+    doc.text('Endpreis:', leftColumn + 5, yPosition + 15);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(237, 59, 113); // Brand color for final price
+    doc.text(discountedPrice, leftColumn + 35, yPosition + 15);
+    doc.setTextColor(darkGray); // Reset color
+
+    // Payment type (only show on second line if there's a discount)
+    if (totalDiscountPercent > 0 && basePriceValue > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Zahlungsart:', rightColumn + 5, yPosition + 15);
+      doc.setFont('helvetica', 'normal');
+      const paymentType = isMonthly ? 'Monatlich' : 'Einmalig';
+      doc.text(paymentType, rightColumn + 35, yPosition + 15);
+    }
+
+    // Show savings amount if there's a discount
+    if (totalDiscountPercent > 0 && basePriceValue > 0) {
+      const savingsAmount = basePriceValue - discountedPriceValue;
+      doc.setFontSize(10);
+      doc.setTextColor(34, 197, 94); // Green color for savings
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Ersparnis: ${formatPrice(savingsAmount)}${isMonthly ? ' / Monat' : ''}`, leftColumn + 5, yPosition + 25);
+      doc.setTextColor(darkGray);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      yPosition += 10; // Add extra space for savings line
+    }
+
+    yPosition += 40;
     
     if (allDiscounts.length > 0) {
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('Angewandte Ermäßigungen', 20, yPosition);
       yPosition += 10;
-
-      // Discount box background
-      doc.setFillColor(254, 249, 195); // Light yellow background
-      doc.rect(20, yPosition - 5, 170, 8 + (allDiscounts.length * 8), 'F');
-      doc.setDrawColor(251, 191, 36);
-      doc.rect(20, yPosition - 5, 170, 8 + (allDiscounts.length * 8), 'S');
 
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
@@ -294,13 +330,11 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
         }
       });
 
-      // Calculate total discount
-      const totalDiscount = allDiscounts.reduce((sum, discount) => sum + discount.discount_percent, 0);
-      
+      // Display total discount (already calculated above)
       yPosition += (allDiscounts.length * 8) + 8;
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(successGreen);
-      doc.text(`Gesamtermäßigung: -${totalDiscount.toFixed(1)}%`, leftColumn + 5, yPosition);
+      doc.text(`Gesamtermäßigung: -${totalDiscountPercent.toFixed(1)}%`, leftColumn + 5, yPosition);
       doc.setTextColor(darkGray);
       
       yPosition += 15;

@@ -3,11 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Check if environment variables are properly configured
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && 
+  supabaseUrl !== 'https://your-project-id.supabase.co' && 
+  supabaseAnonKey !== 'your-anon-key-here');
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create a fallback client if environment variables are missing
+const fallbackUrl = 'https://example.supabase.co';
+const fallbackKey = 'fallback-key';
+
+export const supabase = createClient(
+  supabaseUrl || fallbackUrl, 
+  supabaseAnonKey || fallbackKey
+);
 
 // Database types
 export interface Profile {
@@ -120,6 +128,21 @@ export interface TrialAppointment {
   created_by?: string;
   created_at: string;
   teacher?: Teacher;
+  created_by_profile?: Profile;
+}
+
+// Legacy interface for backward compatibility (maps to TrialAppointment)
+export interface TrialLesson {
+  id: string;
+  student_name: string;
+  instrument: string;
+  phone?: string;
+  email?: string;
+  status: 'open' | 'assigned' | 'accepted';
+  assigned_teacher_id?: string; // Legacy field name
+  created_by?: string;
+  created_at: string;
+  assigned_teacher?: Teacher; // Legacy field name
   created_by_profile?: Profile;
 }
 

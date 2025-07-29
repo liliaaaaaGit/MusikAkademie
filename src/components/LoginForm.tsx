@@ -9,13 +9,13 @@ import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function LoginForm() {
-  const { user, signIn, loading } = useAuth();
+  const { user, profile, signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (user) {
+  if (user && profile) {
     return <Navigate to="/" replace />;
   }
 
@@ -135,15 +135,19 @@ export function LoginForm() {
               </Button>
             </form>
 
-            <div className="pt-4 border-t border-gray-200">
-              <div className="text-center">
-                <Link 
-                  to="/datenschutz" 
-                  className="text-sm text-gray-600 underline hover:text-brand-primary hover:no-underline transition-colors"
-                >
+            <div className="mt-6 flex flex-col items-center">
+              <div className="flex justify-center items-center space-x-4 text-sm text-muted-foreground">
+                <Link to="/datenschutz" className="hover:underline">
                   Datenschutzerklärung
                 </Link>
+                <span>|</span>
+                <Link to="/impressum" className="hover:underline">
+                  Impressum
+                </Link>
               </div>
+              <Link to="/register" className="mt-2 text-sm text-muted-foreground hover:underline">
+                Noch kein Konto? Hier registrieren.
+              </Link>
             </div>
           </CardContent>
         </Card>

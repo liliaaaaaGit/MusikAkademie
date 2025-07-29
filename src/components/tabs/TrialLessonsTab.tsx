@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, TrialLesson, Teacher } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,16 @@ import { toast } from 'sonner';
 
 export function TrialLessonsTab() {
   const { profile, isAdmin } = useAuth();
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (profile && profile.role === 'teacher' && isMobile) {
+      document.body.classList.add('teacher-mobile');
+    } else {
+      document.body.classList.remove('teacher-mobile');
+    }
+  }, [profile, isMobile]);
+  if (!profile) return null;
+  console.log('DEBUG: profile?.role', profile?.role, 'isMobile', isMobile);
   const [trialLessons, setTrialLessons] = useState<TrialLesson[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,33 +43,49 @@ export function TrialLessonsTab() {
   const currentTeacherId = currentTeacher?.id;
 
   useEffect(() => {
-    fetchTrialLessons();
     fetchTeachers();
   }, []);
+
+  useEffect(() => {
+    if (profile && (isAdmin || currentTeacher)) {
+      fetchTrialLessons();
+    }
+  }, [profile, isAdmin, currentTeacher]);
 
   const fetchTrialLessons = async () => {
     try {
       let query = supabase
-        .from('trial_lessons')
+        .from('trial_appointments')
         .select(`
           *,
           assigned_teacher:teachers(id, name, instrument)
-        `)
-        .order('created_at', { ascending: false });
+        `);
 
-      // Filter by assigned teacher for non-admin users
-      if (profile?.role === 'teacher' && currentTeacherId) {
-        query = query.eq('assigned_teacher_id', currentTeacherId);
+      // Apply role-based filtering for trial lessons
+      if (profile?.role === 'teacher' && currentTeacher) {
+        // Teachers see:
+        // 1. Trial lessons assigned to themselves 
+        // 2. All open trial lessons
+        // 3. Trial lessons they have accepted
+        query = query.or(`teacher_id.eq.${currentTeacher.id},status.eq.open`);
       }
+      // Admins see everything (no additional filtering needed)
 
-      const { data, error } = await query;
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         toast.error('Failed to fetch trial lessons', { description: error.message });
         return;
       }
 
-      setTrialLessons(data || []);
+      // Transform data to match legacy TrialLesson interface
+      const transformedData = (data || []).map(item => ({
+        ...item,
+        assigned_teacher_id: item.teacher_id, // Map new field name to legacy field name
+        assigned_teacher: item.teacher // Map teacher to assigned_teacher
+      }));
+
+      setTrialLessons(transformedData);
     } catch (error) {
       console.error('Error fetching trial lessons:', error);
       toast.error('Failed to fetch trial lessons');
@@ -93,10 +120,10 @@ export function TrialLessonsTab() {
 
     try {
       const { error } = await supabase
-        .from('trial_lessons')
+        .from('trial_appointments')
         .update({
-          status: 'assigned',
-          assigned_teacher_id: currentTeacher.id
+          status: 'accepted',
+          teacher_id: currentTeacher.id
         })
         .eq('id', trialLesson.id);
 
@@ -114,7 +141,7 @@ export function TrialLessonsTab() {
   };
 
   const canEditTrialLesson = (lesson: TrialLesson) => {
-    return isAdmin || lesson.assigned_teacher_id === currentTeacherId;
+    return isAdmin || lesson.assigned_teacher_id === currentTeacher?.id;
   };
 
   const filteredTrialLessons = trialLessons.filter(lesson => {
@@ -139,9 +166,45 @@ export function TrialLessonsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Permission Info Box for Teachers - hide on teacher mobile */}
+      {!(profile && profile.role === 'teacher' && isMobile) && (
+        <Card className="teacher-mobile-info-box bg-gray-50 border-gray-200 mb-4">
+          <CardContent className="pt-6">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <Clock className="h-5 w-5 text-gray-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-800">
+                  Lehreransicht - Probestunden verwalten
+                </h3>
+                <p className="text-sm text-gray-700 mt-1">
+                  Sie können zugewiesene Probestunden annehmen oder ablehnen und offene Probestunden annehmen. Das Erstellen und Bearbeiten von Probestunden ist nur für Administratoren möglich.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Legacy Notice */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <div className="flex-shrink-0">
+            <Clock className="h-5 w-5 text-yellow-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-yellow-800">Legacy Component</h3>
+            <p className="text-sm text-yellow-700 mt-1">
+              This is a legacy trial lessons component. The main trial management feature is now called "Probestunden" in the navigation.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trial Lessons</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Trial Lessons (Legacy)</h1>
           <p className="text-gray-600">Manage trial lesson requests and assignments</p>
         </div>
         <Button onClick={() => setShowAddForm(true)} className="w-full sm:w-auto bg-brand-primary hover:bg-brand-primary/90">
@@ -278,7 +341,8 @@ export function TrialLessonsTab() {
         ))}
       </div>
 
-      {filteredTrialLessons.length === 0 && (
+      {/* Empty state info box for no trial lessons */}
+      {!(profile?.role === 'teacher' && isMobile) && filteredTrialLessons.length === 0 && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">

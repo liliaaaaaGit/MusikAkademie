@@ -156,6 +156,19 @@ export function ReplaceContractConfirmationModal({
                   <span className="font-medium text-gray-600">Preis:</span>
                   <p className="text-brand-primary font-medium">{getContractPriceDisplay(contractToReplace)}</p>
                 </div>
+
+                {/* Show discount information if available */}
+                {(contractToReplace.custom_discount_percent && contractToReplace.custom_discount_percent > 0) && (
+                  <div className="col-span-2">
+                    <span className="font-medium text-gray-600">Ermäßigung:</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        Custom: -{contractToReplace.custom_discount_percent}%
+                      </Badge>
+                      <span className="text-xs text-gray-500">manuell zugewiesen</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Progress Information */}

@@ -71,6 +71,37 @@ button:focus-visible {
   }
 }
 
+@media (max-width: 639px) {
+  body.teacher-mobile .teacher-mobile-info-box {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  html {
+    overscroll-behavior: auto !important;
+    scroll-behavior: smooth !important;
+  }
+  body {
+    min-height: 100vh;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  /* Only body should be scrollable on mobile. Remove overflow-y from main wrappers. */
+  .mobile-main, main.sm\:hidden {
+    min-height: 100vh;
+    width: 100vw;
+    max-width: 100vw;
+    position: relative;
+    overflow-y: unset !important;
+  }
+  /* If you have sticky/fixed headers, consider making them static on mobile to avoid scroll offset issues. */
+  /* For modals/dialogs, use position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow-y: auto; on mobile. */
+  .overflow-hidden {
+    overflow: auto !important;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

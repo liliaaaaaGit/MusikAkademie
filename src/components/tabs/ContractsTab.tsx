@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, Contract, Teacher, Student, Lesson, ContractDiscount, getContractDuration, getContractTypeDisplay, getLegacyContractTypeDisplay, getLegacyContractDuration, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,6 +22,7 @@ import { toast } from 'sonner';
 
 export function ContractsTab() {
   const { profile, isAdmin } = useAuth();
+  const isMobile = useIsMobile();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherContracts, setTeacherContracts] = useState<Record<string, number>>({});
@@ -37,6 +39,7 @@ export function ContractsTab() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deletingContract, setDeletingContract] = useState<Contract | null>(null);
   const [selectedStudentForNewContract, setSelectedStudentForNewContract] = useState<string>('');
+  const [allDiscounts, setAllDiscounts] = useState<ContractDiscount[]>([]);
 
   // Memoize current teacher lookup
   const currentTeacher = useMemo(() => 
@@ -90,6 +93,17 @@ export function ContractsTab() {
     initializeData();
   }, [isAdmin]);
 
+  useEffect(() => {
+    const fetchAllDiscounts = async () => {
+      const { data, error } = await supabase
+        .from('contract_discounts')
+        .select('*')
+        .order('name');
+      if (!error && data) setAllDiscounts(data);
+    };
+    fetchAllDiscounts();
+  }, []);
+
   const fetchTeacherContractCounts = async () => {
     try {
       // Use a proper server-side query with JOIN and COUNT
@@ -117,8 +131,9 @@ export function ContractsTab() {
         // Count contracts per teacher manually
         const counts: Record<string, number> = {};
         contractData?.forEach(contract => {
-          const teacherId = contract.student?.teacher_id;
-          if (teacherId) {
+          const student = contract.student;
+          const teacherId = student && typeof student === 'object' && 'teacher_id' in student ? student.teacher_id : undefined;
+          if (typeof teacherId === 'string') {
             counts[teacherId] = (counts[teacherId] || 0) + 1;
           }
         });
@@ -130,7 +145,7 @@ export function ContractsTab() {
       // Convert RPC result to our expected format
       const counts: Record<string, number> = {};
       data?.forEach((row: { teacher_id: string; contract_count: number }) => {
-        if (row.teacher_id) {
+        if (typeof row.teacher_id === 'string') {
           counts[row.teacher_id] = row.contract_count;
         }
       });
@@ -154,8 +169,9 @@ export function ContractsTab() {
         if (!contractError && contractData) {
           const counts: Record<string, number> = {};
           contractData.forEach(contract => {
-            const teacherId = contract.student?.teacher_id;
-            if (teacherId) {
+            const student = contract.student;
+            const teacherId = student && typeof student === 'object' && 'teacher_id' in student ? student.teacher_id : undefined;
+            if (typeof teacherId === 'string') {
               counts[teacherId] = (counts[teacherId] || 0) + 1;
             }
           });
@@ -253,71 +269,52 @@ export function ContractsTab() {
     }
   };
 
-  const handleDeleteContract = async (contract: Contract) => {
-    if (!isAdmin) {
-      toast.error('Nur Administratoren können Verträge löschen');
-      return;
-    }
-
-    setDeletingContract(contract);
-  };
-
-  const handleConfirmDeleteContract = async () => {
-    if (!deletingContract) return;
-
+  const handleDeleteContract = async (contractId: string) => {
+    setLoading(true);
     try {
-      // Remove contract reference from student
-      await supabase
-        .from('students')
-        .update({
-          contract_id: null
-        })
-        .eq('id', deletingContract.student_id);
-
-      // Delete the contract (this will cascade delete lessons)
-      const { error } = await supabase
-        .from('contracts')
-        .delete()
-        .eq('id', deletingContract.id);
-
+      const { error } = await supabase.from('contracts').delete().eq('id', contractId);
       if (error) {
-        toast.error('Fehler beim Löschen des Vertrags', { description: error.message });
-        return;
+        throw new Error(error.message || 'Fehler beim Löschen des Vertrags');
       }
+      toast.success('Vertrag gelöscht');
 
-      toast.success('Vertrag erfolgreich gelöscht');
-      setDeletingContract(null);
-      
-      // Update both contract list and counts
-      if (selectedTeacherForContracts) {
-        fetchContracts(selectedTeacherForContracts.id);
-      } else {
-        fetchContracts();
-      }
-      
-      // Always update counts for admin view
-      if (isAdmin) {
-        fetchTeacherContractCounts();
-      }
+      // Refetch contracts after deletion
+      // ✨ Preserve current teacher filter
+      await fetchContracts(
+        selectedTeacherForContracts ? selectedTeacherForContracts.id : undefined
+      );
     } catch (error) {
-      console.error('Error deleting contract:', error);
-      toast.error('Fehler beim Löschen des Vertrags');
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      toast.error('Fehler beim Löschen des Vertrags: ' + errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   const canEditContract = (contract: Contract) => {
-    // Teachers cannot edit contracts - only admins can
+    // FIXED: Only admins can edit contracts
     return isAdmin;
   };
 
   const canDeleteContract = (contract: Contract) => {
-    // Teachers cannot delete contracts - only admins can
+    // FIXED: Only admins can delete contracts
     return isAdmin;
   };
 
   const canAddContract = () => {
-    // Teachers cannot add contracts - only admins can
+    // FIXED: Only admins can add contracts
     return isAdmin;
+  };
+
+  const canViewContractDetails = (contract: Contract) => {
+    // Admins can see all contracts, teachers can only see their students' contracts
+    if (isAdmin) return true;
+    
+    if (profile?.role === 'teacher' && currentTeacher) {
+      return contract.student?.teacher_id === currentTeacher.id;
+    }
+    
+    return false;
   };
 
   // Enhanced progress calculation that considers lesson availability
@@ -381,7 +378,8 @@ export function ContractsTab() {
     if (contract.final_price && contract.payment_type) {
       return {
         price: contract.final_price,
-        type: contract.payment_type
+        type: contract.payment_type,
+        hasDiscount: (contract.custom_discount_percent && contract.custom_discount_percent > 0) || (contract.discount_ids && contract.discount_ids.length > 0)
       };
     }
 
@@ -390,17 +388,40 @@ export function ContractsTab() {
       if (contract.contract_variant.monthly_price) {
         return {
           price: contract.contract_variant.monthly_price,
-          type: 'monthly' as const
+          type: 'monthly' as const,
+          hasDiscount: false
         };
       } else if (contract.contract_variant.one_time_price) {
         return {
           price: contract.contract_variant.one_time_price,
-          type: 'one_time' as const
+          type: 'one_time' as const,
+          hasDiscount: false
         };
       }
     }
 
     return null;
+  };
+
+  const getDiscountDisplay = (contract: Contract) => {
+    if (!isAdmin) return null;
+    const discounts = [];
+    // Add standard discounts with actual percentages
+    if (contract.discount_ids && contract.discount_ids.length > 0) {
+      const found = contract.discount_ids
+        .map(id => allDiscounts.find(d => d.id === id))
+        .filter(Boolean) as ContractDiscount[];
+      if (found.length > 0) {
+        discounts.push(
+          `Standard: ${found.map(d => `${d.discount_percent}%`).join(', ')}`
+        );
+      }
+    }
+    // Add custom discount
+    if (contract.custom_discount_percent && contract.custom_discount_percent > 0) {
+      discounts.push(`Custom: ${contract.custom_discount_percent}%`);
+    }
+    return discounts.length > 0 ? discounts.join(', ') : null;
   };
 
   const formatPrice = (price: number, type: 'monthly' | 'one_time') => {
@@ -517,7 +538,7 @@ export function ContractsTab() {
     const contractType = contract.contract_variant?.contract_category?.name || contract.type || '';
     const matchesType = typeFilter === 'all' || contractType === typeFilter;
     
-    const matchesTeacher = teacherFilter === 'all' || contract.student?.teacher?.id === teacherFilter;
+    const matchesTeacher = teacherFilter === 'all' || contract.student?.teacher_id === teacherFilter;
     
     return matchesSearch && matchesStatus && matchesType && matchesTeacher;
   });
@@ -526,6 +547,14 @@ export function ContractsTab() {
     const matchesSearch = teacher.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
+
+  const handleContractSave = async () => {
+    try {
+      await fetchContracts(); // Refetch contracts after save
+    } catch (error) {
+      toast.error('Fehler beim Aktualisieren der Vertragsliste');
+    }
+  };
 
   if (loading) {
     return (
@@ -582,7 +611,7 @@ export function ContractsTab() {
       </div>
 
       {/* Show info message for teachers */}
-      {!isAdmin && (
+      {profile?.role === 'teacher' && (
         <Card className="bg-gray-50 border-gray-200">
           <CardContent className="pt-6">
             <div className="flex items-start space-x-3">
@@ -594,8 +623,7 @@ export function ContractsTab() {
                   Lehreransicht - Eingeschränkte Berechtigungen
                 </h3>
                 <p className="text-sm text-gray-700 mt-1">
-                  Sie können nur Ihre eigenen Verträge anzeigen und Stunden verfolgen. Preise sind ausgeblendet. 
-                  Das Hinzufügen, Bearbeiten oder Löschen von Verträgen ist nur für Administratoren möglich.
+                  Sie können nur Ihre eigenen Verträge anzeigen und Stunden verfolgen. Das Hinzufügen, Bearbeiten oder Löschen von Verträgen ist nur für Administratoren möglich.
                 </p>
               </div>
             </div>
@@ -645,7 +673,6 @@ export function ContractsTab() {
                     <SelectItem value="ten_lesson_card">10er Karte</SelectItem>
                     <SelectItem value="half_year_contract">Halbjahr</SelectItem>
                     <SelectItem value="supplement_program">Ergänzung</SelectItem>
-                    <SelectItem value="private_diploma">Diplom</SelectItem>
                     <SelectItem value="repetition_workshop">Workshop</SelectItem>
                     <SelectItem value="trial_package">Schnupper</SelectItem>
                   </SelectContent>
@@ -798,7 +825,7 @@ export function ContractsTab() {
                         </DropdownMenuItem>
                         {canDeleteContract(contract) && (
                           <DropdownMenuItem 
-                            onClick={() => handleDeleteContract(contract)}
+                            onClick={() => handleDeleteContract(contract.id)}
                             className="text-red-600"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
@@ -842,10 +869,30 @@ export function ContractsTab() {
                       {priceInfo && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-gray-600">Preis</span>
+                          <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-brand-primary">
                             {formatPrice(priceInfo.price, priceInfo.type)}
                           </span>
+                            {priceInfo.hasDiscount && (
+                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                Ermäßigt
+                              </Badge>
+                            )}
+                          </div>
                         </div>
+                      )}
+
+                      {/* Show discount information for admins */}
+                      {isAdmin && getDiscountDisplay(contract) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">Ermäßigungen</span>
+                          <span className="text-sm text-green-600">
+                            {getDiscountDisplay(contract)}
+                          </span>
+                        </div>
+                      )}
+                      {isAdmin && !getDiscountDisplay(contract) && (
+                        <div className="flex items-center justify-between min-h-[24px]">{/* placeholder for alignment */}</div>
                       )}
                       
                       <div className="space-y-2">
@@ -855,7 +902,7 @@ export function ContractsTab() {
                             <span className="text-sm font-medium">
                               {progress.current}/{progress.total}
                             </span>
-                            {progress.unavailable > 0 && (
+                            {Number(progress.unavailable) > 0 && (
                               <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600 border-gray-200">
                                 {progress.unavailable} nicht verfügbar
                               </Badge>
@@ -870,7 +917,7 @@ export function ContractsTab() {
                         </div>
                         <div className="flex justify-between items-center text-xs text-gray-500">
                           <span>{progress.percentage}% abgeschlossen</span>
-                          {progress.unavailable > 0 && (
+                          {Number(progress.unavailable) > 0 && (
                             <span className="text-gray-500">
                               {progress.unavailable} Stunden ausgeschlossen
                             </span>
@@ -967,7 +1014,7 @@ export function ContractsTab() {
         <DeleteContractConfirmationModal
           open={!!deletingContract}
           onClose={() => setDeletingContract(null)}
-          onConfirm={handleConfirmDeleteContract}
+          onConfirm={() => handleDeleteContract(deletingContract.id)}
           contract={deletingContract}
         />
       )}
@@ -978,7 +1025,9 @@ export function ContractsTab() {
           contract={selectedContract}
           open={!!selectedContract}
           onClose={() => setSelectedContract(null)}
-          onUpdate={() => {
+          onUpdate={async () => {
+            // Add a short delay to allow backend to update
+            await new Promise(resolve => setTimeout(resolve, 750));
             if (selectedTeacherForContracts) {
               fetchContracts(selectedTeacherForContracts.id);
             } else {

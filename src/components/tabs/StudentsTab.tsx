@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreHorizontal, Edit, Trash2, FileText, Info } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash2, FileText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { StudentForm } from '@/components/forms/StudentForm';
 import { DeleteStudentConfirmationModal } from '@/components/modals/DeleteStudentConfirmationModal';

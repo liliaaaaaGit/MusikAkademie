@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, Contract, Teacher, Student, Lesson, ContractDiscount, getContractDuration, getContractTypeDisplay, getLegacyContractTypeDisplay, getLegacyContractDuration, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,7 +21,6 @@ import { toast } from 'sonner';
 
 export function ContractsTab() {
   const { profile, isAdmin } = useAuth();
-  const isMobile = useIsMobile();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherContracts, setTeacherContracts] = useState<Record<string, number>>({});
@@ -306,17 +304,6 @@ export function ContractsTab() {
     return isAdmin;
   };
 
-  const canViewContractDetails = (contract: Contract) => {
-    // Admins can see all contracts, teachers can only see their students' contracts
-    if (isAdmin) return true;
-    
-    if (profile?.role === 'teacher' && currentTeacher) {
-      return contract.student?.teacher_id === currentTeacher.id;
-    }
-    
-    return false;
-  };
-
   // Enhanced progress calculation that considers lesson availability
   const getAttendanceProgress = (contract: Contract) => {
     if (!contract.lessons || contract.lessons.length === 0) {
@@ -349,20 +336,6 @@ export function ContractsTab() {
     // Fallback to legacy type system
     if (contract.type) {
       return getLegacyContractTypeDisplay(contract.type);
-    }
-    
-    return 'Unbekannt';
-  };
-
-  const getContractDurationSafe = (contract: Contract) => {
-    // Use new contract variant system if available
-    if (contract.contract_variant) {
-      return getContractDuration(contract.contract_variant);
-    }
-    
-    // Fallback to legacy type system
-    if (contract.type) {
-      return getLegacyContractDuration(contract.type);
     }
     
     return 'Unbekannt';
@@ -427,15 +400,6 @@ export function ContractsTab() {
   const formatPrice = (price: number, type: 'monthly' | 'one_time') => {
     const formattedPrice = price.toFixed(2);
     return type === 'monthly' ? `${formattedPrice}€ / Monat` : `${formattedPrice}€ einmalig`;
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'Unbekannt';
-    
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Ungültiges Datum';
-    
-    return format(date, 'dd.MM.yyyy', { locale: de });
   };
 
   const handleDownloadPDF = async (contract: Contract) => {
@@ -547,14 +511,6 @@ export function ContractsTab() {
     const matchesSearch = teacher.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
-
-  const handleContractSave = async () => {
-    try {
-      await fetchContracts(); // Refetch contracts after save
-    } catch (error) {
-      toast.error('Fehler beim Aktualisieren der Vertragsliste');
-    }
-  };
 
   if (loading) {
     return (

@@ -60,14 +60,6 @@ export function TeachersTab() {
     }
   };
 
-  interface ContractWithStudent {
-    id: string;
-    student?: {
-      id: string;
-      teacher_id: string;
-    };
-  }
-
   const fetchTeacherContractCounts = async () => {
     try {
       const { data: contractData, error: contractError } = await supabase
@@ -89,14 +81,14 @@ export function TeachersTab() {
       const counts: Record<string, number> = {};
       (contractData)?.forEach(contract => {
         if (Array.isArray(contract.student)) {
-          contract.student.forEach(s => {
+          contract.student.forEach((s: any) => {
             if (s.teacher_id) {
               const teacherId = s.teacher_id;
               counts[teacherId] = (counts[teacherId] || 0) + 1;
             }
           });
-        } else if (contract.student && contract.student.teacher_id) {
-          const teacherId = contract.student.teacher_id;
+        } else if (contract.student && (contract.student as any).teacher_id) {
+          const teacherId = (contract.student as any).teacher_id;
           counts[teacherId] = (counts[teacherId] || 0) + 1;
         }
       });

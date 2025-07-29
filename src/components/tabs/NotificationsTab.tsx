@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { supabase, Notification, Contract, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData, acceptTrial, declineTrial } from '@/lib/supabase';
+import { supabase, Notification, Contract, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Bell, BellOff, Search, Download, Plus, Trash2, Eye, Calendar, User, FileText, CheckCircle, Clock, Check, X, UserCheck } from 'lucide-react';
+import { Bell, BellOff, Search, Download, Plus, Trash2, Eye, Calendar, User, FileText, CheckCircle, Clock, Check, UserCheck } from 'lucide-react';
 import { LessonTrackerModal } from '@/components/modals/LessonTrackerModal';
 import { ContractForm } from '@/components/forms/ContractForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';

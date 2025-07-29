@@ -265,7 +265,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     }
   };
 
-  const performStudentSave = async (studentId?: string) => {
+  const performStudentSave = async () => {
     // Determine the final instrument value
     let finalInstrument = formData.instrument;
     if (showCustomInstrumentInput && customInstrumentValue.trim()) {
@@ -407,7 +407,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
         }
         
         // Force teacher_id to be the current teacher's ID for teachers
-        formData.teacher_id = currentTeacherId;
+        setFormData(prev => ({ ...prev, teacher_id: currentTeacherId }));
       }
 
       // For admins creating new students, require teacher assignment

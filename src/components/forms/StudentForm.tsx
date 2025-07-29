@@ -145,7 +145,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
           selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
         }));
         console.log('DEBUG: setFormData for custom discount', {
-          selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
+          selectedDiscountIds: [...formData.selectedDiscountIds, 'custom-discount']
         });
       }
     }

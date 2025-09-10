@@ -369,54 +369,7 @@ export function NotificationsTab() {
                       <CardTitle className="text-lg">{getNotificationTitle(notification.type)}</CardTitle>
                       <Badge className="bg-red-600 text-white">Neu</Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {notification.contract && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewContract(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadPDF(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCreateNewContract(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleMarkAsRead(notification)}
-                        className="h-8 w-8 p-0"
-                        title="Als gelesen markieren"
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteNotification(notification)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="Löschen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Removed top-right icon actions; footer buttons remain */}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -481,13 +434,13 @@ export function NotificationsTab() {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <span className="font-medium text-gray-600">Erstellt:</span>
-                            <p>{formatDate(notification.created_at)}</p>
-                          </div>
-                        </div>
+                                                  <div className="flex items-center gap-2">
+                           <Calendar className="h-4 w-4 text-gray-400" />
+                           <div>
+                             <span className="font-medium text-gray-600">Erstellt:</span>
+                             <p>{formatDate(notification.created_at)}</p>
+                           </div>
+                         </div>
                       </div>
                     )}
 
@@ -573,45 +526,7 @@ export function NotificationsTab() {
                       <CardTitle className="text-lg text-gray-700">{getNotificationTitle(notification.type)}</CardTitle>
                       <Badge variant="outline" className="bg-gray-100 text-gray-600">Gelesen</Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {notification.contract && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewContract(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadPDF(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCreateNewContract(notification)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteNotification(notification)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="Löschen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Removed top-right icon actions; footer buttons remain */}
                   </div>
                 </CardHeader>
                 <CardContent>

@@ -77,8 +77,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
     student_id: contract?.student_id || initialStudentId || '',
     selectedCategoryId: '',
     selectedVariantId: contract?.contract_variant_id || '',
-    selectedDiscountIds: contract?.discount_ids || [],
-    status: contract?.status || 'active'
+    selectedDiscountIds: contract?.discount_ids || []
   });
   const [loading, setLoading] = useState(false);
 
@@ -238,7 +237,6 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       student_id: formData.student_id,
       type: getLegacyContractType(selectedCategory?.name || ''),
       contract_variant_id: formData.selectedVariantId,
-      status: formData.status,
       discount_ids: discountIds.length > 0 ? discountIds : null,
       custom_discount_percent: useCustomDiscount && customDiscountPercent > 0 
         ? customDiscountPercent 
@@ -676,31 +674,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
           </Card>
         )}
 
-        {/* Contract Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Vertragsstatus</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => handleChange('status', value)}
-                disabled={loading}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="completed">Abgeschlossen</SelectItem>
-                  <SelectItem value="cancelled">Storniert</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Contract Status control removed: status is display-only elsewhere */}
 
         <div className="flex justify-end space-x-2 pt-6 border-t">
           <Button 

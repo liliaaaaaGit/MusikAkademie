@@ -389,7 +389,7 @@ export function StudentsTab() {
                   <TableHead>Vertrag</TableHead>
                   {isAdmin && <TableHead>Bank-ID</TableHead>}
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aktionen</TableHead>
+                  {isAdmin && <TableHead className="text-right">Aktionen</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -426,43 +426,45 @@ export function StudentsTab() {
                         {student.status === 'active' ? 'Aktiv' : 'Inaktiv'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      {(canEditStudent() || canDeleteStudent()) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              className="bg-transparent border-none shadow-none p-0 h-auto w-auto text-black hover:bg-transparent hover:text-black"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {canEditStudent() && (
-                              <DropdownMenuItem onClick={() => setEditingStudent(student)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Bearbeiten
-                              </DropdownMenuItem>
-                            )}
-                            {isAdmin && (
-                              <DropdownMenuItem onClick={() => handleShowContract(student)}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Vertrag anzeigen
-                              </DropdownMenuItem>
-                            )}
-                            {canDeleteStudent() && (
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteStudent(student)}
-                                className="text-red-600"
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        {(canEditStudent() || canDeleteStudent()) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="bg-transparent border-none shadow-none p-0 h-auto w-auto text-black hover:bg-transparent hover:text-black"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Löschen
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canEditStudent() && (
+                                <DropdownMenuItem onClick={() => setEditingStudent(student)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Bearbeiten
+                                </DropdownMenuItem>
+                              )}
+                              {isAdmin && (
+                                <DropdownMenuItem onClick={() => handleShowContract(student)}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Vertrag anzeigen
+                                </DropdownMenuItem>
+                              )}
+                              {canDeleteStudent() && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeleteStudent(student)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Löschen
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

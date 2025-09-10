@@ -54,7 +54,6 @@ export function NotificationsTab() {
             teacher:teachers(id, name, instrument),
             created_by_profile:profiles!trial_appointments_created_by_fkey(id, full_name)
           ),
-          teacher:teachers(id, name, bank_id),
           student:students(id, name, instrument)
         `)
         .order('created_at', { ascending: false });
@@ -139,6 +138,84 @@ export function NotificationsTab() {
     }
   };
 
+  // Function to render clickable links in notification messages
+  const renderNotificationMessage = (message: string) => {
+    // Simple markdown link parser: [text](url)
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = linkRegex.exec(message)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push({
+          type: 'text',
+          content: message.slice(lastIndex, match.index)
+        });
+      }
+
+      // Add the link
+      parts.push({
+        type: 'link',
+        text: match[1],
+        url: match[2]
+      });
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < message.length) {
+      parts.push({
+        type: 'text',
+        content: message.slice(lastIndex)
+      });
+    }
+
+    return (
+      <span>
+        {parts.map((part, index) => {
+          if (part.type === 'link') {
+            return (
+              <button
+                key={index}
+                onClick={() => part.url && handlePDFLinkClick(part.url)}
+                className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+              >
+                {part.text}
+              </button>
+            );
+          } else {
+            return <span key={index}>{part.content}</span>;
+          }
+        })}
+      </span>
+    );
+  };
+
+  // Handle PDF link clicks
+  const handlePDFLinkClick = async (pdfUrl: string) => {
+    // Extract contract ID from URL like "/contracts/{id}/pdf"
+    const contractIdMatch = pdfUrl.match(/\/contracts\/([^\/]+)\/pdf/);
+    if (!contractIdMatch) {
+      toast.error('Ungültiger PDF-Link');
+      return;
+    }
+
+    const contractId = contractIdMatch[1];
+    
+    // Find the notification with this contract
+    const notification = notifications.find(n => n.contract?.id === contractId);
+    if (!notification) {
+      toast.error('Vertrag nicht gefunden');
+      return;
+    }
+
+    // Use the existing PDF download function
+    await handleDownloadPDF(notification);
+  };
+
   const handleViewContract = async (notification: Notification) => {
     if (!notification.contract) {
       toast.error('Vertragsdaten nicht verfügbar');
@@ -176,13 +253,73 @@ export function NotificationsTab() {
       }
 
       // Prepare contract data for PDF
-      const contractToExport: PDFContractData = {
+      let contractToExport: PDFContractData = {
         ...notification.contract,
         applied_discounts: appliedDiscounts
       };
 
-      // Generate and download PDF
-      await generateContractPDF(contractToExport);
+      // Admin-only: fetch student and teacher bank_ids for PDF display
+      // Get profile data directly since get_user_role() seems to have issues
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id)
+        .single();
+      
+      const isAdmin = profileData?.role === 'admin';
+      console.log('PDF Debug - Direct profile check (Notifications):', { profileData, isAdmin });
+      
+      // Always fetch bank_ids for admins, regardless of what's in the contract object
+      if (isAdmin) {
+        // Fetch student bank_id
+        const studentId = notification.contract?.student?.id;
+        if (studentId) {
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('bank_id')
+            .eq('id', studentId)
+            .single();
+          
+          if (studentData) {
+            contractToExport = {
+              ...contractToExport,
+              student: {
+                ...contractToExport.student,
+                bank_id: studentData.bank_id,
+              } as any,
+            };
+            console.log('PDF Debug - Updated student bank_id (Notifications):', studentData.bank_id);
+          }
+        }
+
+        // Fetch teacher bank_id
+        const teacherId = notification.contract?.student?.teacher?.id;
+        if (teacherId) {
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('bank_id')
+            .eq('id', teacherId)
+            .single();
+          
+          if (teacherData) {
+            contractToExport = {
+              ...contractToExport,
+              student: {
+                ...contractToExport.student,
+                teacher: {
+                  ...contractToExport.student?.teacher,
+                  bank_id: teacherData.bank_id,
+                } as any,
+              } as any,
+            };
+            console.log('PDF Debug - Updated teacher bank_id (Notifications):', teacherData.bank_id);
+          }
+        }
+      }
+
+      // Generate and download PDF (admins see bank IDs)
+      await generateContractPDF(contractToExport, { showBankIds: isAdmin });
       
       toast.success('PDF erfolgreich heruntergeladen', {
         description: `Vertrag für ${notification.contract.student?.name} wurde als PDF gespeichert.`
@@ -374,7 +511,7 @@ export function NotificationsTab() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <p className="text-sm text-gray-700">{notification.message}</p>
+                    <p className="text-sm text-gray-700">{renderNotificationMessage(notification.message)}</p>
                     
                     {notification.contract && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -531,7 +668,7 @@ export function NotificationsTab() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <p className="text-sm text-gray-600">{notification.message}</p>
+                    <p className="text-sm text-gray-600">{renderNotificationMessage(notification.message)}</p>
                     
                     {notification.contract && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">

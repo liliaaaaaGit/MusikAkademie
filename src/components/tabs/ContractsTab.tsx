@@ -15,6 +15,8 @@ import { DeleteContractConfirmationModal } from '@/components/modals/DeleteContr
 import { ContractForm } from '@/components/forms/ContractForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { fmtDate } from '@/lib/utils';
+import { formatMonthYearShort } from '@/lib/utils';
 
 export function ContractsTab() {
   const { profile, isAdmin } = useAuth();
@@ -185,12 +187,12 @@ export function ContractsTab() {
         .select(`
           *,
           student:students!fk_contracts_student_id(
-            id, name, instrument, 
+            id, name, instrument, status, bank_id,
             teacher:teachers(id, name, bank_id)
           ),
           contract_variant:contract_variants(
             id, name, duration_months, group_type, session_length_minutes, total_lessons,
-            ${isAdmin ? 'monthly_price, one_time_price,' : ''}
+            monthly_price, one_time_price,
             contract_category:contract_categories(id, name, display_name)
           ),
           lessons:lessons(id, lesson_number, date, is_available, comment)
@@ -199,9 +201,9 @@ export function ContractsTab() {
 
       // Filter by specific teacher (for admin view) or current teacher (for teacher view)
       if (teacherId) {
-        query = query.eq('students.teacher_id', teacherId);
+        query = query.eq('teacher_id', teacherId);
       } else if (profile?.role === 'teacher' && currentTeacher?.id) {
-        query = query.eq('students.teacher_id', currentTeacher.id);
+        query = query.eq('teacher_id', currentTeacher.id);
       }
 
       const { data, error } = await query;
@@ -209,6 +211,16 @@ export function ContractsTab() {
       if (error) {
         toast.error('Fehler beim Laden der Verträge', { description: error.message });
         return;
+      }
+
+      // Debug: Check if bank_ids are included in the fetched data
+      if (data && data.length > 0) {
+        console.log('Contracts Debug - First contract data:', {
+          studentBankId: data[0].student?.bank_id,
+          teacherBankId: data[0].student?.teacher?.bank_id,
+          studentName: data[0].student?.name,
+          teacherName: data[0].student?.teacher?.name
+        });
       }
 
       setContracts(data || []);
@@ -399,19 +411,63 @@ export function ContractsTab() {
     return type === 'monthly' ? `${formattedPrice}€ / Monat` : `${formattedPrice}€ einmalig`;
   };
 
+  // Helper: determine if a contract is completed (progress 100%)
+  const isContractCompleted = (contract: Contract) => {
+    const progress = getAttendanceProgress(contract);
+    return progress.percentage === 100;
+  };
+
+  // Helper: compute conditional classes for completed vs active contracts
+  const getContractCardStyling = (contract: Contract) => {
+    const completed = isContractCompleted(contract);
+    return {
+      progressBarClass: completed ? 'bg-gray-400' : 'bg-brand-primary',
+      buttonClass: completed
+        ? 'w-full bg-gray-400 hover:bg-gray-500 focus:ring-gray-400 text-white'
+        : 'w-full bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary',
+      statusBadgeVariant: (completed ? 'secondary' : 'default') as 'secondary' | 'default',
+      priceTextClass: completed ? 'text-gray-600' : 'text-brand-primary',
+    };
+  };
+
   const handleDownloadPDF = async (contract: Contract) => {
     try {
       toast.info('PDF-Download wird vorbereitet...', {
         description: `Vertrag für ${contract.student?.name} wird als PDF generiert.`
       });
 
-      // Fetch detailed lesson data for this contract if not already loaded
-      let contractWithLessons = contract;
-      if (!contract.lessons || contract.lessons.length === 0) {
+      // Always refetch a fresh contract snapshot including all new fields
+      const { data: freshContract, error: freshError } = await supabase
+        .from('contracts')
+        .select(`
+          id, billing_cycle, paid_at, paid_through, term_start, term_end, term_label, cancelled_at,
+          student:students!fk_contracts_student_id(id, name, instrument, status, bank_id,
+            teacher:teachers(id, name, bank_id)
+          ),
+          contract_variant:contract_variants(
+            id, name, duration_months, group_type, session_length_minutes, total_lessons,
+            monthly_price, one_time_price,
+            contract_category:contract_categories(id, name, display_name)
+          ),
+          lessons:lessons(id, lesson_number, date, is_available, comment),
+          type, discount_ids, custom_discount_percent, payment_type, status, attendance_count, attendance_dates, created_at, updated_at
+        `)
+        .eq('id', contract.id)
+        .single();
+
+      if (freshError || !freshContract) {
+        console.warn('PDF: could not fetch fresh contract, falling back to in-memory one', freshError);
+      }
+
+      const baseContract = freshContract || contract;
+
+      // Fetch detailed lesson data if not already loaded
+      let contractWithLessons = baseContract;
+      if (!baseContract.lessons || baseContract.lessons.length === 0) {
         const { data: lessonsData, error: lessonsError } = await supabase
           .from('lessons')
           .select('*')
-          .eq('contract_id', contract.id)
+          .eq('contract_id', baseContract.id)
           .order('lesson_number');
 
         if (lessonsError) {
@@ -421,18 +477,18 @@ export function ContractsTab() {
         }
 
         contractWithLessons = {
-          ...contract,
+          ...baseContract,
           lessons: lessonsData || []
-        };
+        } as Contract;
       }
 
       // Fetch discount details if discount_ids exist
       let appliedDiscounts: ContractDiscount[] = [];
-      if (contract.discount_ids && contract.discount_ids.length > 0) {
+      if (contractWithLessons.discount_ids && contractWithLessons.discount_ids.length > 0) {
         const { data: discountsData, error: discountsError } = await supabase
           .from('contract_discounts')
           .select('*')
-          .in('id', contract.discount_ids);
+          .in('id', contractWithLessons.discount_ids);
 
         if (discountsError) {
           console.error('Error fetching discounts for PDF:', discountsError);
@@ -446,10 +502,30 @@ export function ContractsTab() {
       const contractToExport: PDFContractData = {
         ...contractWithLessons,
         applied_discounts: appliedDiscounts
-      };
+      } as PDFContractData;
+
+      // Check admin role and fetch bank_ids if needed
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id)
+        .single();
+      
+      const isAdmin = profileData?.role === 'admin';
+      console.log('PDF Debug - ContractsTab admin check:', { profileData, isAdmin });
+      console.log('PDF Debug - Contract meta for PDF:', {
+        billing_cycle: (contractToExport as any).billing_cycle,
+        paid_at: (contractToExport as any).paid_at,
+        paid_through: (contractToExport as any).paid_through,
+        term_start: (contractToExport as any).term_start,
+        term_end: (contractToExport as any).term_end,
+        term_label: (contractToExport as any).term_label,
+        cancelled_at: (contractToExport as any).cancelled_at,
+      });
 
       // Generate and download PDF
-      await generateContractPDF(contractToExport);
+      await generateContractPDF(contractToExport, { showBankIds: isAdmin });
       
       toast.success('PDF erfolgreich heruntergeladen', {
         description: `Vertrag für ${contract.student?.name} wurde als PDF gespeichert.`
@@ -741,13 +817,14 @@ export function ContractsTab() {
             </Card>
           )}
           
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
             {filteredContracts.map((contract) => {
               const progress = getAttendanceProgress(contract);
               const priceInfo = getContractPriceDisplay(contract);
+              const { progressBarClass, buttonClass, statusBadgeVariant, priceTextClass } = getContractCardStyling(contract);
               
               return (
-                <Card key={contract.id} className="hover:shadow-md transition-shadow">
+                <Card key={contract.id} className="hover:shadow-md transition-shadow h-full flex flex-col">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-lg font-medium">
                       {contract.student?.name || 'Unbekannter Schüler'}
@@ -788,8 +865,9 @@ export function ContractsTab() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex-1">
                     <div className="space-y-3">
+                      {/* Type */}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-600">Typ</span>
                         <span className="text-sm font-medium text-gray-900">
@@ -797,13 +875,25 @@ export function ContractsTab() {
                         </span>
                       </div>
                       
+                      {/* Status row (label left, status pill right) */}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-600">Status</span>
-                        <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                          {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
+                        <Badge variant={statusBadgeVariant}>
+                          {contract.student?.status === 'active' ? 'Aktiv' : 'Inaktiv'}
                         </Badge>
                       </div>
+
+                      {/* Laufzeit */}
+                      {(contract.term_label || contract.term_start || contract.term_end) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">Laufzeit</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {contract.term_label || `${formatMonthYearShort(contract.term_start)}${contract.term_start && contract.term_end ? ' – ' : ''}${formatMonthYearShort(contract.term_end)}`}
+                          </span>
+                        </div>
+                      )}
                       
+                      {/* Instrument */}
                       {contract.student?.instrument && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-gray-600">Instrument</span>
@@ -811,21 +901,14 @@ export function ContractsTab() {
                         </div>
                       )}
                       
-                      {contract.student?.teacher && !selectedTeacherForContracts && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-600">Lehrer</span>
-                          <span className="text-sm">{contract.student.teacher.name}</span>
-                        </div>
-                      )}
-
-                      {/* Show pricing information only for admins */}
+                      {/* Preis */}
                       {priceInfo && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-gray-600">Preis</span>
                           <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-brand-primary">
-                            {formatPrice(priceInfo.price, priceInfo.type)}
-                          </span>
+                            <span className={`text-sm font-medium ${priceTextClass}`}>
+                              {formatPrice(priceInfo.price, priceInfo.type)}
+                            </span>
                             {priceInfo.hasDiscount && (
                               <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                                 Ermäßigt
@@ -835,7 +918,7 @@ export function ContractsTab() {
                         </div>
                       )}
 
-                      {/* Show discount information for admins */}
+                      {/* Ermäßigungen (only if present) */}
                       {isAdmin && getDiscountDisplay(contract) && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-gray-600">Ermäßigungen</span>
@@ -845,44 +928,65 @@ export function ContractsTab() {
                         </div>
                       )}
                       {isAdmin && !getDiscountDisplay(contract) && (
-                        <div className="flex items-center justify-between min-h-[24px]">{/* placeholder for alignment */}</div>
+                        <div className="flex items-center justify-between min-h-[24px]"></div>
                       )}
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-600">Fortschritt</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {progress.current}/{progress.total}
-                            </span>
-                            {Number(progress.unavailable) > 0 && (
-                              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600 border-gray-200">
-                                {progress.unavailable} nicht verfügbar
-                              </Badge>
-                            )}
-                          </div>
+
+                      {/* Payment + Cancellation badges row (moved here) */}
+                      {(contract.billing_cycle === 'upfront' && contract.paid_at) ||
+                       (contract.billing_cycle === 'monthly' && contract.paid_through) ||
+                       contract.cancelled_at ? (
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          {contract.billing_cycle === 'upfront' && contract.paid_at && (
+                            <Badge variant="secondary">Bezahlt am {fmtDate(contract.paid_at)}</Badge>
+                          )}
+                          {contract.billing_cycle === 'monthly' && contract.paid_through && (
+                            <Badge variant="secondary">Bezahlt bis {formatMonthYearShort(contract.paid_through)}</Badge>
+                          )}
+                          {contract.billing_cycle === 'monthly' && contract.paid_through && new Date(contract.paid_through) < new Date() && (
+                            <Badge variant="outline">Überfällig</Badge>
+                          )}
+                          {contract.cancelled_at && (
+                            <Badge variant="outline" className="text-red-600 border-red-300">Gekündigt zum {fmtDate(contract.cancelled_at)}</Badge>
+                          )}
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-brand-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${progress.percentage}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between items-center text-xs text-gray-500">
-                          <span>{progress.percentage}% abgeschlossen</span>
+                      ) : null}
+                    </div>
+                  </CardContent>
+
+                  {/* Footer pinned to bottom */}
+                  <div className="mt-auto border-t px-6 py-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-600">Fortschritt</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            {progress.current}/{progress.total}
+                          </span>
                           {Number(progress.unavailable) > 0 && (
-                            <span className="text-gray-500">
-                              {progress.unavailable} Stunden ausgeschlossen
-                            </span>
+                            <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600 border-gray-200">
+                              {progress.unavailable} nicht verfügbar
+                            </Badge>
                           )}
                         </div>
                       </div>
-
-                      {/* Quick Action Button */}
-                      <div className="pt-2 border-t">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${progressBarClass} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${progress.percentage}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>{progress.percentage}% abgeschlossen</span>
+                        {Number(progress.unavailable) > 0 && (
+                          <span className="text-gray-500">
+                            {progress.unavailable} Stunden ausgeschlossen
+                          </span>
+                        )}
+                      </div>
+                      <div className="pt-2">
                         <Button
                           onClick={() => setSelectedContract(contract)}
-                          className="w-full bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary"
+                          className={buttonClass}
                           size="sm"
                         >
                           <Clock className="h-4 w-4 mr-2" />
@@ -890,7 +994,7 @@ export function ContractsTab() {
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
               );
             })}

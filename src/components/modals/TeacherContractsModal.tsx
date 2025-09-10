@@ -34,7 +34,7 @@ export function TeacherContractsModal({ teacher, open, onClose }: TeacherContrac
           *,
           student:students!fk_contracts_student_id(id, name, instrument, email, phone)
         `)
-        .eq('students.teacher_id', teacher.id)
+        .eq('teacher_id', teacher.id)
         .order('created_at', { ascending: false });
 
       if (error) {

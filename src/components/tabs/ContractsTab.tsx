@@ -47,14 +47,14 @@ export function ContractsTab() {
   // Filter students for contract form based on context
   const studentsForContractForm = useMemo(() => {
     if (isAdmin && selectedTeacherForContracts) {
-      // Admin viewing specific teacher's contracts - filter to only that teacher's students
-      return students.filter(s => s.teacher_id === selectedTeacherForContracts.id);
+      // Admin viewing specific teacher's contracts - filter to students who have contracts with this teacher
+      return students.filter(s => s.contracts?.some(c => c.teacher?.id === selectedTeacherForContracts.id));
     } else if (isAdmin && !selectedTeacherForContracts) {
       // Admin viewing all contracts - show all students
       return students;
     } else if (profile?.role === 'teacher' && currentTeacher) {
-      // Teacher view - show only their own students
-      return students.filter(s => s.teacher_id === currentTeacher.id);
+      // Teacher view - show only students with contracts assigned to this teacher
+      return students.filter(s => s.contracts?.some(c => c.teacher?.id === currentTeacher.id));
     }
     return [];
   }, [isAdmin, selectedTeacherForContracts, students, profile, currentTeacher]);
@@ -114,10 +114,7 @@ export function ContractsTab() {
           .from('contracts')
           .select(`
             id,
-            student:students!fk_contracts_student_id(
-              id,
-              teacher_id
-            )
+            teacher_id
           `);
 
         if (contractError) {
@@ -128,8 +125,7 @@ export function ContractsTab() {
         // Count contracts per teacher manually
         const counts: Record<string, number> = {};
         contractData?.forEach(contract => {
-          const student = contract.student;
-          const teacherId = student && typeof student === 'object' && 'teacher_id' in student ? student.teacher_id : undefined;
+          const teacherId = contract.teacher_id;
           if (typeof teacherId === 'string') {
             counts[teacherId] = (counts[teacherId] || 0) + 1;
           }
@@ -157,17 +153,13 @@ export function ContractsTab() {
           .from('contracts')
           .select(`
             id,
-            student:students!fk_contracts_student_id(
-              id,
-              teacher_id
-            )
+            teacher_id
           `);
 
         if (!contractError && contractData) {
           const counts: Record<string, number> = {};
           contractData.forEach(contract => {
-            const student = contract.student;
-            const teacherId = student && typeof student === 'object' && 'teacher_id' in student ? student.teacher_id : undefined;
+            const teacherId = contract.teacher_id;
             if (typeof teacherId === 'string') {
               counts[teacherId] = (counts[teacherId] || 0) + 1;
             }
@@ -187,9 +179,9 @@ export function ContractsTab() {
         .select(`
           *,
           student:students!fk_contracts_student_id(
-            id, name, instrument, status, bank_id,
-            teacher:teachers(id, name, bank_id)
+            id, name, instrument, status, bank_id
           ),
+          teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
           contract_variant:contract_variants(
             id, name, duration_months, group_type, session_length_minutes, total_lessons,
             monthly_price, one_time_price,
@@ -253,14 +245,17 @@ export function ContractsTab() {
       let query = supabase
         .from('students')
         .select(`
-          *,
-          teacher:teachers(id, name, profile_id, instrument, bank_id)
+          id, name, instrument, status, bank_id, created_at,
+          contracts:contracts!fk_contracts_student_id(
+            id,
+            teacher:teachers!contracts_teacher_id_fkey(id, name, profile_id, instrument, bank_id)
+          )
         `)
         .order('name');
 
       // Filter by teacher for non-admin users
       if (profile?.role === 'teacher' && currentTeacher?.id) {
-        query = query.eq('teacher_id', currentTeacher.id);
+        query = query.eq('contracts.teacher_id', currentTeacher.id);
       }
 
       const { data, error } = await query;
@@ -270,7 +265,7 @@ export function ContractsTab() {
         return;
       }
 
-      setStudents(data || []);
+      setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);
     }
@@ -441,9 +436,8 @@ export function ContractsTab() {
         .from('contracts')
         .select(`
           id, billing_cycle, paid_at, paid_through, term_start, term_end, term_label, cancelled_at,
-          student:students!fk_contracts_student_id(id, name, instrument, status, bank_id,
-            teacher:teachers(id, name, bank_id)
-          ),
+          student:students!fk_contracts_student_id(id, name, instrument, status, bank_id),
+          teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
           contract_variant:contract_variants(
             id, name, duration_months, group_type, session_length_minutes, total_lessons,
             monthly_price, one_time_price,
@@ -575,7 +569,7 @@ export function ContractsTab() {
     const contractType = contract.contract_variant?.contract_category?.name || contract.type || '';
     const matchesType = typeFilter === 'all' || contractType === typeFilter;
     
-    const matchesTeacher = teacherFilter === 'all' || contract.student?.teacher_id === teacherFilter;
+    const matchesTeacher = teacherFilter === 'all' || contract.teacher?.id === teacherFilter;
     
     return matchesSearch && matchesStatus && matchesType && matchesTeacher;
   });

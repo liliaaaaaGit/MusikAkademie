@@ -42,21 +42,53 @@ BEGIN
   END IF;
 
   IF is_update THEN
-    UPDATE public.contracts SET 
-      student_id = (contract_data->>'student_id')::uuid,
-      type = contract_data->>'type',
-      contract_variant_id = (contract_data->>'contract_variant_id')::uuid,
-      status = COALESCE(status_update, status),
-      discount_ids = CASE WHEN array_length(parsed_discount_ids, 1) IS NOT NULL THEN parsed_discount_ids ELSE NULL END,
-      custom_discount_percent = CASE WHEN contract_data->>'custom_discount_percent' IS NOT NULL THEN (contract_data->>'custom_discount_percent')::numeric ELSE NULL END,
-      final_price = CASE WHEN contract_data->>'final_price' IS NOT NULL THEN (contract_data->>'final_price')::numeric ELSE NULL END,
-      payment_type = contract_data->>'payment_type',
-      updated_at = now()
-    WHERE id = contract_id_param
-    RETURNING id INTO contract_id;
+    -- IMPORTANT: Do not touch status unless explicitly provided
+    IF status_update IS NULL THEN
+      UPDATE public.contracts SET 
+        student_id = (contract_data->>'student_id')::uuid,
+        type = contract_data->>'type',
+        contract_variant_id = (contract_data->>'contract_variant_id')::uuid,
+        -- New metadata fields (only update when keys provided)
+        billing_cycle = CASE WHEN contract_data ? 'billing_cycle' THEN NULLIF(contract_data->>'billing_cycle','')::billing_cycle ELSE billing_cycle END,
+        paid_at = CASE WHEN contract_data ? 'paid_at' THEN NULLIF(contract_data->>'paid_at','')::date ELSE paid_at END,
+        paid_through = CASE WHEN contract_data ? 'paid_through' THEN NULLIF(contract_data->>'paid_through','')::date ELSE paid_through END,
+        term_start = CASE WHEN contract_data ? 'term_start' THEN NULLIF(contract_data->>'term_start','')::date ELSE term_start END,
+        term_end = CASE WHEN contract_data ? 'term_end' THEN NULLIF(contract_data->>'term_end','')::date ELSE term_end END,
+        term_label = CASE WHEN contract_data ? 'term_label' THEN NULLIF(contract_data->>'term_label','') ELSE term_label END,
+        cancelled_at = CASE WHEN contract_data ? 'cancelled_at' THEN NULLIF(contract_data->>'cancelled_at','')::date ELSE cancelled_at END,
+        discount_ids = CASE WHEN array_length(parsed_discount_ids, 1) IS NOT NULL THEN parsed_discount_ids ELSE NULL END,
+        custom_discount_percent = CASE WHEN contract_data->>'custom_discount_percent' IS NOT NULL THEN (contract_data->>'custom_discount_percent')::numeric ELSE NULL END,
+        final_price = CASE WHEN contract_data->>'final_price' IS NOT NULL THEN (contract_data->>'final_price')::numeric ELSE NULL END,
+        payment_type = contract_data->>'payment_type',
+        updated_at = now()
+      WHERE id = contract_id_param
+      RETURNING id INTO contract_id;
+    ELSE
+      UPDATE public.contracts SET 
+        student_id = (contract_data->>'student_id')::uuid,
+        type = contract_data->>'type',
+        contract_variant_id = (contract_data->>'contract_variant_id')::uuid,
+        status = status_update,
+        -- New metadata fields (only update when keys provided)
+        billing_cycle = CASE WHEN contract_data ? 'billing_cycle' THEN NULLIF(contract_data->>'billing_cycle','')::billing_cycle ELSE billing_cycle END,
+        paid_at = CASE WHEN contract_data ? 'paid_at' THEN NULLIF(contract_data->>'paid_at','')::date ELSE paid_at END,
+        paid_through = CASE WHEN contract_data ? 'paid_through' THEN NULLIF(contract_data->>'paid_through','')::date ELSE paid_through END,
+        term_start = CASE WHEN contract_data ? 'term_start' THEN NULLIF(contract_data->>'term_start','')::date ELSE term_start END,
+        term_end = CASE WHEN contract_data ? 'term_end' THEN NULLIF(contract_data->>'term_end','')::date ELSE term_end END,
+        term_label = CASE WHEN contract_data ? 'term_label' THEN NULLIF(contract_data->>'term_label','') ELSE term_label END,
+        cancelled_at = CASE WHEN contract_data ? 'cancelled_at' THEN NULLIF(contract_data->>'cancelled_at','')::date ELSE cancelled_at END,
+        discount_ids = CASE WHEN array_length(parsed_discount_ids, 1) IS NOT NULL THEN parsed_discount_ids ELSE NULL END,
+        custom_discount_percent = CASE WHEN contract_data->>'custom_discount_percent' IS NOT NULL THEN (contract_data->>'custom_discount_percent')::numeric ELSE NULL END,
+        final_price = CASE WHEN contract_data->>'final_price' IS NOT NULL THEN (contract_data->>'final_price')::numeric ELSE NULL END,
+        payment_type = contract_data->>'payment_type',
+        updated_at = now()
+      WHERE id = contract_id_param
+      RETURNING id INTO contract_id;
+    END IF;
   ELSE
     INSERT INTO public.contracts (
-      student_id, type, contract_variant_id, status, discount_ids, custom_discount_percent, final_price, payment_type, attendance_count, attendance_dates
+      student_id, type, contract_variant_id, status, discount_ids, custom_discount_percent, final_price, payment_type, attendance_count, attendance_dates,
+      billing_cycle, paid_at, paid_through, term_start, term_end, term_label, cancelled_at
     ) VALUES (
       (contract_data->>'student_id')::uuid,
       contract_data->>'type',
@@ -67,7 +99,14 @@ BEGIN
       CASE WHEN contract_data->>'final_price' IS NOT NULL THEN (contract_data->>'final_price')::numeric ELSE NULL END,
       contract_data->>'payment_type',
       '0/0',
-      '[]'::jsonb
+      '[]'::jsonb,
+      NULLIF(contract_data->>'billing_cycle','')::billing_cycle,
+      NULLIF(contract_data->>'paid_at','')::date,
+      NULLIF(contract_data->>'paid_through','')::date,
+      NULLIF(contract_data->>'term_start','')::date,
+      NULLIF(contract_data->>'term_end','')::date,
+      NULLIF(contract_data->>'term_label',''),
+      NULLIF(contract_data->>'cancelled_at','')::date
     ) RETURNING id INTO contract_id;
   END IF;
 

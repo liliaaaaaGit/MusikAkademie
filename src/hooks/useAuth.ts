@@ -17,7 +17,7 @@ export function useAuth() {
     }
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -45,7 +45,6 @@ export function useAuth() {
   const fetchProfile = async (userId: string) => {
     try {
       console.log('Fetching profile for user:', userId);
-      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -62,10 +61,8 @@ export function useAuth() {
         setProfile(data[0]);
       } else {
         console.log('No profile found for user:', userId);
-        // If user exists but no profile is found, sign out to clear invalid session
-        await supabase.auth.signOut();
-        setProfile(null);
-        setUser(null);
+        // Try to create profile manually
+        await createProfileManually(userId);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -75,6 +72,98 @@ export function useAuth() {
       setUser(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createProfileManually = async (userId: string) => {
+    try {
+      console.log('Attempting to create profile manually for user:', userId);
+      
+      // Get current session instead of trying to get user data again
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
+        console.error('Error getting session data:', sessionError);
+        return;
+      }
+
+      const user = session.user;
+      console.log('User data from session:', user);
+
+      // Create profile with user metadata (without updated_at field)
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || 'Unknown',
+          role: user.user_metadata?.role || 'teacher'
+        })
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error('Error creating profile manually:', profileError);
+        
+        // If it's an RLS policy issue, try to create without the created_at field
+        if (profileError.message.includes('new row violates row-level security policy')) {
+          console.log('RLS policy blocked profile creation, trying alternative approach...');
+          
+          // Try to create profile using a different approach
+          const { data: altProfileData, error: altProfileError } = await supabase
+            .rpc('create_profile_for_user', {
+              user_id: userId,
+              user_email: user.email,
+              user_full_name: user.user_metadata?.full_name || 'Unknown',
+              user_role: user.user_metadata?.role || 'teacher'
+            });
+          
+          if (altProfileError) {
+            console.error('Alternative profile creation also failed:', altProfileError);
+            await supabase.auth.signOut();
+            setProfile(null);
+            setUser(null);
+            return;
+          }
+          
+          console.log('Profile created via RPC:', altProfileData);
+          setProfile(altProfileData);
+        } else {
+          // If profile creation fails, sign out
+          await supabase.auth.signOut();
+          setProfile(null);
+          setUser(null);
+          return;
+        }
+      } else {
+        console.log('Profile created successfully:', profileData);
+        setProfile(profileData);
+      }
+
+      // Update teacher record if teacher_id is provided
+      if (user.user_metadata?.teacher_id) {
+        try {
+          const { error: updateError } = await supabase
+            .from('teachers')
+            .update({ profile_id: userId })
+            .eq('id', user.user_metadata.teacher_id);
+          
+          if (updateError) {
+            console.error('Error updating teacher record:', updateError);
+          } else {
+            console.log('Teacher record updated successfully');
+          }
+        } catch (updateError) {
+          console.error('Exception updating teacher record:', updateError);
+        }
+      }
+
+    } catch (error) {
+      console.error('Exception creating profile manually:', error);
+      // If there's an exception, sign out
+      await supabase.auth.signOut();
+      setProfile(null);
+      setUser(null);
     }
   };
 

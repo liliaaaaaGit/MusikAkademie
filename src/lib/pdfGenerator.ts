@@ -8,8 +8,21 @@ export interface PDFContractData extends Contract {
   applied_discounts?: ContractDiscount[];
 }
 
-export const generateContractPDF = async (contract: PDFContractData): Promise<void> => {
+export const generateContractPDF = async (
+  contract: PDFContractData,
+  options?: { showBankIds?: boolean }
+): Promise<void> => {
   try {
+    const showBankIds = !!options?.showBankIds;
+    
+    console.log('PDF Generation Debug:', {
+      showBankIds,
+      studentBankId: contract.student?.bank_id,
+      teacherBankId: contract.student?.teacher?.bank_id,
+      studentName: contract.student?.name,
+      teacherName: contract.student?.teacher?.name
+    });
+    
     // Create new PDF document
     const doc = new jsPDF();
     
@@ -125,12 +138,15 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
     doc.text('Lehrer:', leftColumn, yPosition + 16);
     doc.setFont('helvetica', 'normal');
     doc.text(contract.student?.teacher?.name || 'Unbekannt', leftColumn + 25, yPosition + 16);
-
+ 
+    // Bank-Informationen (always render; placeholders for non-admin)
     doc.setFont('helvetica', 'bold');
     doc.text('Bank-ID Lehrer:', leftColumn, yPosition + 24);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.student?.teacher?.bank_id || 'Unbekannt', leftColumn + 35, yPosition + 24);
-
+    const teacherBankIdText = (showBankIds ? (contract.student?.teacher?.bank_id || '—') : '—');
+    console.log('PDF Debug - Teacher Bank ID rendering:', { showBankIds, teacherBankId: contract.student?.teacher?.bank_id, finalText: teacherBankIdText });
+    doc.text(teacherBankIdText, leftColumn + 35, yPosition + 24);
+ 
     // Right column - Contract Information
     doc.setFont('helvetica', 'bold');
     doc.text('Kategorie:', rightColumn, yPosition);
@@ -155,8 +171,49 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
     doc.setFont('helvetica', 'normal');
     const createdDate = formatDate(contract.created_at);
     doc.text(createdDate, rightColumn + 25, yPosition + 24);
+ 
+    // Second bank row under the right column to keep the section aligned across roles
+    // Render "Bank-ID Schüler" label/value beneath the header row on the left column
+    // Place it just under the first bank row for consistent spacing
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bank-ID Schüler:', leftColumn, yPosition + 32);
+    doc.setFont('helvetica', 'normal');
+    const studentBankIdText = (showBankIds ? (contract.student?.bank_id || '—') : '—');
+    console.log('PDF Debug - Student Bank ID rendering:', { showBankIds, studentBankId: contract.student?.bank_id, finalText: studentBankIdText });
+    doc.text(studentBankIdText, leftColumn + 35, yPosition + 32);
 
-    yPosition += 40;
+    yPosition += 48;
+
+    // NEW: Payment / Term / Cancellation (conditional)
+    const metaLines: string[] = [];
+    if (contract.billing_cycle === 'monthly' && contract.paid_through) {
+      metaLines.push(`Zahlung: monatlich – bezahlt bis ${format(new Date(contract.paid_through), 'MMMM yyyy', { locale: de })}`);
+    }
+    if (contract.billing_cycle === 'upfront' && contract.paid_at) {
+      metaLines.push(`Zahlung: einmalig – bezahlt am ${format(new Date(contract.paid_at), 'dd.MM.yyyy', { locale: de })}`);
+    }
+    if (contract.term_label || contract.term_start || contract.term_end) {
+      let termText = '';
+      if (contract.term_label) {
+        termText = contract.term_label;
+      } else {
+        const left = contract.term_start ? format(new Date(contract.term_start), 'MMMM yyyy', { locale: de }) : '';
+        const right = contract.term_end ? format(new Date(contract.term_end), 'MMMM yyyy', { locale: de }) : '';
+        termText = left && right ? `${left} – ${right}` : (left || right);
+      }
+      if (termText) metaLines.push(`Laufzeit: ${termText}`);
+    }
+    if (contract.cancelled_at) {
+      metaLines.push(`Kündigung: ${format(new Date(contract.cancelled_at), 'dd.MM.yyyy', { locale: de })}`);
+    }
+
+    if (metaLines.length > 0) {
+      doc.setFontSize(12);
+      metaLines.forEach(line => {
+        yPosition = addWrappedText(line, 20, yPosition, 170, 11) + 2;
+      });
+      yPosition += 6;
+    }
 
     // Contract Specifications Section
     doc.setFontSize(16);
@@ -339,8 +396,11 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
       yPosition += 15;
     }
 
-    // Progress Section
+    // Progress Section – always start on a new page (page 2)
     if (contract.lessons && contract.lessons.length > 0) {
+      // Force a deterministic page break so progress always starts at top of next page
+      doc.addPage();
+      yPosition = 20; // top margin for new page
       const availableLessons = contract.lessons.filter(lesson => lesson.is_available !== false);
       const completedLessons = availableLessons.filter(lesson => lesson.date).length;
       const totalAvailable = availableLessons.length;
@@ -380,7 +440,7 @@ export const generateContractPDF = async (contract: PDFContractData): Promise<vo
       
       yPosition += 20;
 
-      // Check if we need a new page for the lessons table
+      // Check if we need a fresh page for the lessons table that follows
       if (yPosition > 200) {
         doc.addPage();
         yPosition = 20;

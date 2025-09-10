@@ -1,0 +1,4 @@
+      // Filter by teacher for non-admin users using the new student_teachers table
+      if (profile?.role === 'teacher' && currentTeacher?.id) {
+        query = query.eq('student_teachers.teacher_id', currentTeacher.id);
+      }

@@ -25,7 +25,7 @@ export function TrialLessonsTab() {
     }
   }, [profile, isMobile]);
   if (!profile) return null;
-  console.log('DEBUG: profile?.role', profile?.role, 'isMobile', isMobile);
+  // Removed debug log
   const [trialLessons, setTrialLessons] = useState<TrialLesson[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);

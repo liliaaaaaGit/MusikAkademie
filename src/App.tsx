@@ -12,6 +12,8 @@ import ImpressumPage from '@/components/ImpressumPage';
 import { useAuth } from '@/hooks/useAuth';
 import { Toaster } from 'sonner';
 import RegisterPage from '@/components/RegisterPage';
+import AuthForgotPage from '@/components/AuthForgotPage';
+import AuthResetPage from '@/components/AuthResetPage';
 
 function App() {
   const { user, loading, configError } = useAuth();
@@ -56,6 +58,8 @@ function App() {
           path="/login" 
           element={!user ? <LoginForm /> : <Navigate to="/students" replace />} 
         />
+        <Route path="/auth/forgot" element={<AuthForgotPage />} />
+        <Route path="/auth/reset" element={<AuthResetPage />} />
         <Route 
           path="/datenschutz" 
           element={<DatenschutzPage />} 

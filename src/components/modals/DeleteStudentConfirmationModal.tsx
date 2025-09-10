@@ -44,9 +44,9 @@ export function DeleteStudentConfirmationModal({
         .select(`
           *,
           student:students!fk_contracts_student_id(
-            id, name, instrument, 
-            teacher:teachers(id, name, bank_id)
+            id, name, instrument
           ),
+          teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
           contract_variant:contract_variants(
             id, name, duration_months, group_type, session_length_minutes, total_lessons, monthly_price, one_time_price,
             contract_category:contract_categories(id, name, display_name)

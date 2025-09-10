@@ -123,11 +123,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
           selectedVariantId: variant.id,
           selectedDiscountIds: discountIds
         }));
-        console.log('DEBUG: setFormData for edit', {
-          selectedCategoryId: variant.contract_category_id,
-          selectedVariantId: variant.id,
-          selectedDiscountIds: discountIds
-        });
       }
     }
   }, [student, contractVariants, contractDiscounts]);
@@ -144,9 +139,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
           ...current,
           selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
         }));
-        console.log('DEBUG: setFormData for custom discount', {
-          selectedDiscountIds: [...formData.selectedDiscountIds, 'custom-discount']
-        });
       }
     }
   }, [student]);
@@ -208,11 +200,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       setContractCategories(categories || []);
       setContractVariants(variants || []);
       setContractDiscounts(discounts || []);
-      console.log('DEBUG: Contract data loaded:', {
-        categories,
-        variants,
-        discounts
-      });
       setContractDataLoaded(true);
     } catch (error) {
       console.error('Error fetching contract data:', error);
@@ -288,8 +275,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
         submitData[key] = null;
       }
     });
-
-    console.log('Submitting student data:', submitData);
 
     if (student) {
       // Update existing student - bank_id is never updated
@@ -445,9 +430,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
             .select(`
               *,
               student:students!fk_contracts_student_id(
-                id, name, instrument, 
-                teacher:teachers(id, name, bank_id)
+                id, name, instrument
               ),
+              teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
               contract_variant:contract_variants(
                 id, name, duration_months, group_type, session_length_minutes, total_lessons, monthly_price, one_time_price,
                 contract_category:contract_categories(id, name, display_name)
@@ -697,15 +682,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
   const availableTeachers = profile?.role === 'teacher' && currentTeacher 
     ? [currentTeacher] 
     : teachers;
-
-  console.log('DEBUG: Render discounts section', {
-    contractDataLoaded,
-    contractDiscounts,
-    selectedVariantId: formData.selectedVariantId,
-    selectedDiscountIds: formData.selectedDiscountIds
-  });
-
-  console.log('DEBUG: student prop', student);
 
   return (
     <div className="max-h-[80vh] overflow-y-auto">

@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Contract } from '@/lib/supabase';
+import { Contract, getContractTypeDisplay, getLegacyContractTypeDisplay } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 interface ContractDetailsModalProps {
@@ -12,6 +12,21 @@ interface ContractDetailsModalProps {
 }
 
 export function ContractDetailsModal({ open, onClose, contract, loading }: ContractDetailsModalProps) {
+  // Helper function to get contract type display
+  const getContractTypeDisplaySafe = (contract: Contract) => {
+    // Use new contract variant system if available
+    if (contract.contract_variant) {
+      return getContractTypeDisplay(contract.contract_variant);
+    }
+    
+    // Fallback to legacy type system
+    if (contract.type) {
+      return getLegacyContractTypeDisplay(contract.type);
+    }
+    
+    return 'Unbekannt';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
@@ -27,7 +42,7 @@ export function ContractDetailsModal({ open, onClose, contract, loading }: Contr
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-600">Typ</span>
-              <span className="text-sm font-medium text-gray-900">{contract.type || '-'}</span>
+              <span className="text-sm font-medium text-gray-900">{getContractTypeDisplaySafe(contract)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-600">Status</span>

@@ -12,9 +12,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TeacherForm } from '@/components/forms/TeacherForm';
 import { DeleteTeacherConfirmationModal } from '@/components/modals/DeleteTeacherConfirmationModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { StudentCountTooltip } from '@/components/StudentCountTooltip';
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
+import { StudentCountTooltip } from '@/components/StudentCountTooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function TeachersTab() {
   const { profile, isAdmin } = useAuth();
@@ -66,10 +67,7 @@ export function TeachersTab() {
         .from('contracts')
         .select(`
           id,
-          student:students!fk_contracts_student_id(
-            id,
-            teacher_id
-          )
+          teacher_id
         `);
 
       if (contractError) {
@@ -80,15 +78,8 @@ export function TeachersTab() {
       // Count contracts per teacher
       const counts: Record<string, number> = {};
       (contractData)?.forEach(contract => {
-        if (Array.isArray(contract.student)) {
-          contract.student.forEach((s: any) => {
-            if (s.teacher_id) {
-              const teacherId = s.teacher_id;
-              counts[teacherId] = (counts[teacherId] || 0) + 1;
-            }
-          });
-        } else if (contract.student && (contract.student as any).teacher_id) {
-          const teacherId = (contract.student as any).teacher_id;
+        const teacherId = contract.teacher_id;
+        if (typeof teacherId === 'string') {
           counts[teacherId] = (counts[teacherId] || 0) + 1;
         }
       });
@@ -106,6 +97,28 @@ export function TeachersTab() {
     }
 
     setDeletingTeacher(teacher);
+  };
+
+  const handleEmailClick = async (email: string) => {
+    if (email && email !== '-') {
+      try {
+        await navigator.clipboard.writeText(email);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      } catch (error) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = email;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      }
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -264,7 +277,23 @@ export function TeachersTab() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-48 truncate">{teacher.email}</TableCell>
+                    <TableCell className="max-w-48 truncate">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span 
+                              className="hover:underline cursor-pointer"
+                              onClick={() => handleEmailClick(teacher.email || '')}
+                            >
+                              {teacher.email}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{teacher.email}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                     <TableCell>{teacher.phone || '-'}</TableCell>
                     <TableCell>
                       <StudentCountTooltip 

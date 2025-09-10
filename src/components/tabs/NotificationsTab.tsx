@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, Notification, Contract, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
+import { supabase, Notification, Contract, Student, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,9 +40,9 @@ export function NotificationsTab() {
           contract:contracts(
             *,
             student:students!fk_contracts_student_id(
-              id, name, instrument, 
-              teacher:teachers(id, name, bank_id)
+              id, name, instrument
             ),
+            teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
             contract_variant:contract_variants(
               id, name, duration_months, group_type, session_length_minutes, total_lessons, monthly_price, one_time_price,
               contract_category:contract_categories(id, name, display_name)
@@ -77,8 +77,11 @@ export function NotificationsTab() {
       const { data, error } = await supabase
         .from('students')
         .select(`
-          *,
-          teacher:teachers(id, name, profile_id, instrument, bank_id)
+          id, name, instrument, status, bank_id, created_at,
+          contracts:contracts!fk_contracts_student_id(
+            id,
+            teacher:teachers!contracts_teacher_id_fkey(id, name, profile_id, instrument, bank_id)
+          )
         `)
         .order('name');
 
@@ -87,7 +90,7 @@ export function NotificationsTab() {
         return;
       }
 
-      setStudents(data || []);
+      setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);
     }

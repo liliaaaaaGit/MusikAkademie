@@ -13,67 +13,106 @@ export function RegisterForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const validate = () => {
-    if (!email) return 'E-Mail ist erforderlich.';
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Ungültiges E-Mail-Format.';
-    if (!password) return 'Passwort ist erforderlich.';
-    if (password.length < 8) return 'Passwort muss mindestens 8 Zeichen lang sein.';
+  const validatePassword = (password: string) => {
+    if (password.length < 12) return 'Passwort muss mindestens 12 Zeichen lang sein.';
+    if (!/[A-Z]/.test(password)) return 'Passwort muss mindestens einen Großbuchstaben enthalten.';
+    if (!/[a-z]/.test(password)) return 'Passwort muss mindestens einen Kleinbuchstaben enthalten.';
+    if (!/[0-9]/.test(password)) return 'Passwort muss mindestens eine Zahl enthalten.';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return 'Passwort muss mindestens ein Sonderzeichen enthalten.';
     return null;
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setMessage(null);
-    const validationError = validate();
+    
+    // Validate password
+    const validationError = validatePassword(password);
     if (validationError) {
       setError(validationError);
       return;
     }
     setLoading(true);
     const trimmedEmail = email.trim();
-    // 1. Check if teacher exists
-    const { data: teachers, error: teacherError } = await supabase
-      .from('teachers')
-      .select('id, email, name')
-      .ilike('email', trimmedEmail);
-    console.log('Teacher query result:', teachers, teacherError, trimmedEmail);
-    if (teacherError || !teachers || teachers.length === 0) {
-      setError('Keine Lehrkraft mit dieser E-Mail gefunden.');
-      setLoading(false);
-      return;
-    }
-    // 2. Register user
-    const { data: userData, error: signUpError } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password,
-    });
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-    // Nach erfolgreichem signUp: Profil per RPC anlegen
-    if (userData && userData.user) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('create_profile_after_signup', {
-        user_id: userData.user.id,
-        user_email: userData.user.email,
+    
+    try {
+      console.log('Starting registration process for:', trimmedEmail);
+      
+      // 1. Check if teacher exists
+      console.log('Checking if teacher exists...');
+      const { data: teachers, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id, email, name')
+        .ilike('email', trimmedEmail);
+      
+      if (teacherError || !teachers || teachers.length === 0) {
+        setError('Keine Lehrkraft mit dieser E-Mail gefunden. Bitte kontaktieren Sie die Verwaltung.');
+        setLoading(false);
+        return;
+      }
+
+      const teacher = teachers[0];
+      console.log('Teacher found:', teacher);
+
+      // 2. Check if user already exists
+      console.log('Checking if user already exists...');
+      const { data: existingUser, error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: 'temporary-password-for-check'
       });
-      if (rpcError) {
-        console.error('RPC create_profile_after_signup failed:', rpcError);
+      
+      if (existingUser && !signInError) {
+        // User exists and can sign in, so they're already registered
+        await supabase.auth.signOut();
+        setError('Ein Konto mit dieser E-Mail existiert bereits. Bitte melden Sie sich an.');
+        setLoading(false);
+        return;
       }
-      if (rpcData) {
-        console.log('RPC result:', rpcData);
-        if (rpcData.success === false) {
-          setError(rpcData.message || rpcData.error || 'Profil konnte nicht erstellt werden.');
-          setLoading(false);
-          return;
+
+      // 3. Create new user
+      console.log('Creating new user...');
+      const { data: userData, error: signUpError } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          data: {
+            full_name: teacher.name,
+            role: 'teacher',
+            teacher_id: teacher.id
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         }
+      });
+
+      if (signUpError) {
+        console.error('Signup error details:', {
+          message: signUpError.message,
+          status: signUpError.status,
+          name: signUpError.name
+        });
+        
+        if (signUpError.message.includes('Signups not allowed')) {
+          setError('Registrierungen sind derzeit deaktiviert. Bitte kontaktieren Sie die Verwaltung.');
+        } else if (signUpError.message.includes('already registered')) {
+          setError('Ein Konto mit dieser E-Mail existiert bereits. Bitte melden Sie sich an.');
+        } else {
+          setError(`Registrierungsfehler: ${signUpError.message}`);
+        }
+        setLoading(false);
+        return;
       }
+
+      console.log('Signup successful:', userData);
+
+      // 4. Sign out and show success message
+      await supabase.auth.signOut();
+      setMessage('Konto erfolgreich erstellt! Bitte überprüfen Sie Ihre E-Mail und bestätigen Sie Ihr Konto, bevor Sie sich anmelden.');
+      
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError('Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
     }
-    await supabase.auth.signOut();
-    setMessage('Konto erstellt! Bitte überprüfen Sie Ihre E-Mail und melden Sie sich anschließend an.');
-    setLoading(false);
   };
 
   return (
@@ -125,13 +164,24 @@ export function RegisterForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Wählen Sie ein sicheres Passwort"
+                  placeholder="Wählen Sie ein sicheres Passwort (min. 12 Zeichen)"
                   className="h-12 text-base focus:ring-brand-primary focus:border-brand-primary"
-                  minLength={8}
+                  minLength={12}
                 />
+                <p className="text-xs text-gray-500">
+                  Mindestens 12 Zeichen, Groß-/Kleinbuchstaben, Zahl und Sonderzeichen
+                </p>
               </div>
-              {error && <div className="mb-2 text-red-600 text-center">{error}</div>}
-              {message && <div className="mb-2 text-green-600 text-center">{message}</div>}
+              {error && (
+                <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-red-600 text-sm">{error}</p>
+                </div>
+              )}
+              {message && (
+                <div className="mb-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-green-600 text-sm">{message}</p>
+                </div>
+              )}
               <Button
                 type="submit"
                 disabled={loading}

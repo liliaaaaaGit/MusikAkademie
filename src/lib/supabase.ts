@@ -44,13 +44,14 @@ export interface Student {
   instrument: string;
   email?: string;
   phone?: string;
-  teacher_id?: string;
-  contract_id?: string;
+  teacher_id?: string; // Deprecated, use contracts.teacher_id
+  contract_id?: string; // Deprecated, use contracts array
   bank_id: string; // Now a text string, always present
   status: 'active' | 'inactive';
   created_at: string;
-  teacher?: Teacher;
-  contract?: Contract;
+  teacher?: Teacher; // Deprecated, use contracts.teacher
+  contract?: Contract; // Deprecated, use contracts array
+  contracts?: Contract[]; // New: array of contracts with different teachers
 }
 
 export interface ContractCategory {
@@ -89,6 +90,7 @@ export interface ContractDiscount {
 export interface Contract {
   id: string;
   student_id: string;
+  teacher_id?: string; // New: direct teacher reference
   type: string; // Required field for legacy compatibility
   contract_variant_id: string;
   discount_ids?: string[];
@@ -101,9 +103,19 @@ export interface Contract {
   updated_at: string;
   custom_discount_percent?: number; // New field for custom discounts
   student?: Student;
+  teacher?: Teacher; // New: teacher object
   contract_variant?: ContractVariant;
   lessons?: Lesson[];
   applied_discounts?: ContractDiscount[];
+  // NEW optional metadata fields
+  billing_cycle?: 'monthly' | 'upfront' | null;
+  paid_at?: string | null;
+  paid_through?: string | null;
+  term_start?: string | null;
+  term_end?: string | null;
+  term_label?: string | null;
+  cancelled_at?: string | null;
+  private_notes?: string | null;
 }
 
 export interface Lesson {

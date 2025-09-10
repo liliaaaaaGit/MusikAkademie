@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Search, MoreHorizontal, Edit, Check, Clock, User, Trash2, Info, X, UserCheck } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Check, Clock, User, Trash2, X, UserCheck } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { TrialAppointmentForm } from '@/components/forms/TrialAppointmentForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -401,27 +401,7 @@ export function TrialAppointmentsTab() {
         )}
       </div>
 
-      {/* Show info message for teachers */}
-      {!isAdmin && (
-        <Card className="bg-gray-50 border-gray-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <Info className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-800">
-                  Lehreransicht - Probestunden verwalten
-                </h3>
-                <p className="text-sm text-gray-700 mt-1">
-                  Sie können zugewiesene Probestunden annehmen oder ablehnen und offene Probestunden annehmen. 
-                  Das Erstellen und Bearbeiten von Probestunden ist nur für Administratoren möglich.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Teacher info banner removed */}
 
       {/* Filters */}
       <Card>

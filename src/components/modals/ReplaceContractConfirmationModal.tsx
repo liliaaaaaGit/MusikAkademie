@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Download, FileText, Calendar, User } from 'lucide-react';
-import { Contract, ContractDiscount, generateContractPDF, PDFContractData } from '@/lib/supabase';
+import { supabase, Contract, ContractDiscount, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -40,8 +40,10 @@ export function ReplaceContractConfirmationModal({
         applied_discounts: contractToReplace.applied_discounts || []
       };
 
-      // Generate and download PDF
-      await generateContractPDF(contractToExport);
+      // Generate and download PDF (admins see bank IDs)
+      const { data: roleResult } = await supabase.rpc('get_user_role');
+      const isAdmin = roleResult === 'admin';
+      await generateContractPDF(contractToExport, { showBankIds: isAdmin });
       
       toast.success('PDF erfolgreich heruntergeladen', {
         description: `Vertrag für ${contractToReplace.student?.name} wurde als PDF gespeichert.`

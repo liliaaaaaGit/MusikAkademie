@@ -73,6 +73,16 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
   const [useCustomDiscount, setUseCustomDiscount] = useState(false);
   const [customDiscountPercent, setCustomDiscountPercent] = useState<number>(0);
 
+  // NEW: Payment & term & cancellation state
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'upfront' | ''>(contract?.billing_cycle || '');
+  const [paidAt, setPaidAt] = useState<string | ''>(contract?.paid_at || '');
+  const [paidThrough, setPaidThrough] = useState<string | ''>(contract?.paid_through || '');
+  const [termStart, setTermStart] = useState<string | ''>(contract?.term_start || '');
+  const [termEnd, setTermEnd] = useState<string | ''>(contract?.term_end || '');
+  const [termLabel, setTermLabel] = useState<string>(contract?.term_label || '');
+  const [isCancelledToggle, setIsCancelledToggle] = useState<boolean>(!!contract?.cancelled_at);
+  const [cancelledAt, setCancelledAt] = useState<string | ''>(contract?.cancelled_at || '');
+
   const [formData, setFormData] = useState({
     student_id: contract?.student_id || initialStudentId || '',
     selectedCategoryId: '',
@@ -241,7 +251,16 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       custom_discount_percent: useCustomDiscount && customDiscountPercent > 0 
         ? customDiscountPercent 
         : null,
-      payment_type: calculatedPricing?.payment_type || null
+      payment_type: calculatedPricing?.payment_type || null,
+
+      // NEW fields (send only when present)
+      billing_cycle: billingCycle || null,
+      paid_at: billingCycle === 'upfront' && paidAt ? paidAt : null,
+      paid_through: billingCycle === 'monthly' && paidThrough ? paidThrough : null,
+      term_start: termStart || null,
+      term_end: termEnd || null,
+      term_label: termLabel || null,
+      cancelled_at: isCancelledToggle && cancelledAt ? cancelledAt : null
     };
     try {
       // 1. Atomic save and sync in one backend transaction
@@ -260,7 +279,18 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
       // 2. Refetch the updated contract from Supabase
       const { data: updatedContract, error: fetchError } = await supabase
         .from('contracts')
-        .select('*, lessons(*)')
+        .select(`
+          id, billing_cycle, paid_at, paid_through, term_start, term_end, term_label, cancelled_at,
+          student:students!fk_contracts_student_id(id, name, instrument, status, bank_id),
+          teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
+          contract_variant:contract_variants(
+            id, name, duration_months, group_type, session_length_minutes, total_lessons,
+            monthly_price, one_time_price,
+            contract_category:contract_categories(id, name, display_name)
+          ),
+          lessons:lessons(id, lesson_number, date, is_available, comment),
+          type, discount_ids, custom_discount_percent, payment_type, status, attendance_count, attendance_dates, created_at, updated_at
+        `)
         .eq('id', result.contract_id)
         .single();
       if (fetchError || !updatedContract) {
@@ -328,9 +358,9 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
           .select(`
             *,
             student:students!fk_contracts_student_id(
-              id, name, instrument, 
-              teacher:teachers(id, name, bank_id)
+              id, name, instrument
             ),
+            teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
             contract_variant:contract_variants(
               id, name, duration_months, group_type, session_length_minutes, total_lessons, monthly_price, one_time_price,
               contract_category:contract_categories(id, name, display_name)
@@ -608,6 +638,102 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
             </CardContent>
           </Card>
         )}
+
+        {/* NEW: Payment Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Zahlung</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4 items-center">
+              <Label className="w-32 mt-1">Zyklus</Label>
+              <div className="flex gap-6">
+                <div className="flex items-center gap-2">
+                  <input type="radio" id="cycle-monthly" name="billing_cycle" checked={billingCycle==='monthly'} onChange={() => { setBillingCycle('monthly'); setPaidAt(''); }} />
+                  <Label htmlFor="cycle-monthly">Monatlich</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="radio" id="cycle-upfront" name="billing_cycle" checked={billingCycle==='upfront'} onChange={() => { setBillingCycle('upfront'); setPaidThrough(''); }} />
+                  <Label htmlFor="cycle-upfront">Einmalig</Label>
+                </div>
+              </div>
+            </div>
+
+            {billingCycle === 'monthly' && (
+              <div className="flex items-center gap-4">
+                <Label className="w-32">Bezahlt bis</Label>
+                <Input type="date" value={paidThrough || ''} onChange={e => setPaidThrough(e.target.value)} className="max-w-[220px]" />
+                <Button type="button" variant="outline" onClick={() => {
+                  const t = new Date();
+                  const y = t.getFullYear();
+                  const m = t.getMonth()+1;
+                  const last = new Date(y, m, 0).getDate();
+                  const mm = String(m).padStart(2,'0');
+                  const dd = String(last).padStart(2,'0');
+                  setPaidThrough(`${y}-${mm}-${dd}`);
+                }}>
+                  Heute (Monatsende)
+                </Button>
+              </div>
+            )}
+
+            {billingCycle === 'upfront' && (
+              <div className="flex items-center gap-4">
+                <Label className="w-32">Bezahlt am</Label>
+                <Input type="date" value={paidAt || ''} onChange={e => setPaidAt(e.target.value)} className="max-w-[220px]" />
+                <Button type="button" variant="outline" onClick={() => {
+                  const t = new Date();
+                  const yyyy = t.getFullYear();
+                  const mm = String(t.getMonth()+1).padStart(2,'0');
+                  const dd = String(t.getDate()).padStart(2,'0');
+                  setPaidAt(`${yyyy}-${mm}-${dd}`);
+                }}>
+                  Heute
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* NEW: Term Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Laufzeit</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Label className="w-32">Beginn</Label>
+              <Input type="date" value={termStart || ''} onChange={e => setTermStart(e.target.value)} className="max-w-[220px]" />
+            </div>
+            <div className="flex items-center gap-4">
+              <Label className="w-32">Ende</Label>
+              <Input type="date" value={termEnd || ''} onChange={e => setTermEnd(e.target.value)} className="max-w-[220px]" />
+            </div>
+            <div className="flex items-center gap-4">
+              <Label className="w-32">Label (optional)</Label>
+              <Input value={termLabel} onChange={e => setTermLabel(e.target.value)} placeholder="z. B. Schuljahr 2025/26" className="max-w-[360px]" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* NEW: Cancellation Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Kündigung</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Checkbox id="cancelled-toggle" checked={isCancelledToggle} onCheckedChange={(v) => setIsCancelledToggle(!!v)} />
+              <Label htmlFor="cancelled-toggle">Gekündigt</Label>
+            </div>
+            {isCancelledToggle && (
+              <div className="flex items-center gap-4">
+                <Label className="w-32">Kündigungsdatum</Label>
+                <Input type="date" value={cancelledAt || ''} onChange={e => setCancelledAt(e.target.value)} className="max-w-[220px]" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Discounts */}
         {contractDiscounts.length > 0 && (

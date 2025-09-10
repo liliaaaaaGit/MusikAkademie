@@ -3,6 +3,8 @@ import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
 
 interface StudentCardViewProps {
   students: any[];
@@ -13,6 +15,28 @@ export const StudentCardView: React.FC<StudentCardViewProps> = ({ students, noOu
   const { profile } = useAuth();
   const isMobile = useIsMobile();
   const isTeacherMobile = profile?.role === 'teacher' && isMobile;
+
+  const handleEmailClick = async (email: string) => {
+    if (email && email !== '-') {
+      try {
+        await navigator.clipboard.writeText(email);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      } catch (error) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = email;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      }
+    }
+  };
 
   return (
     <div className={`sm:hidden w-full max-w-[600px] mx-auto${noOuterPadding ? '' : ' px-2'}`}>
@@ -41,7 +65,21 @@ export const StudentCardView: React.FC<StudentCardViewProps> = ({ students, noOu
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">E-Mail:</span>
-                <span className="truncate">{student.email || '-'}</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span 
+                        className="truncate cursor-pointer hover:underline"
+                        onClick={() => handleEmailClick(student.email || '')}
+                      >
+                        {student.email || '-'}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{student.email || '-'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">Telefon:</span>

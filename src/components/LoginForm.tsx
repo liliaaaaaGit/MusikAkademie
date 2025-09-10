@@ -133,6 +133,11 @@ export function LoginForm() {
                   'Anmelden'
                 )}
               </Button>
+              <div className="flex justify-center mt-2">
+                <Link to="/auth/forgot" className="text-sm text-muted-foreground hover:underline">
+                  Passwort vergessen?
+                </Link>
+              </div>
             </form>
 
             <div className="mt-6 flex flex-col items-center">

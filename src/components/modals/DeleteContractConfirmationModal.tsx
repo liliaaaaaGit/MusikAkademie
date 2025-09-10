@@ -27,6 +27,8 @@ export function DeleteContractConfirmationModal({
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
+      console.log('PDF Debug - Starting PDF download...');
+      
       toast.info('PDF-Download wird vorbereitet...', {
         description: `Vertrag für ${contract.student?.name} wird als PDF generiert.`
       });
@@ -69,13 +71,82 @@ export function DeleteContractConfirmationModal({
       }
 
       // Prepare contract data for PDF
-      const contractToExport: PDFContractData = {
+      let contractToExport: PDFContractData = {
         ...contractWithLessons,
         applied_discounts: appliedDiscounts
       };
 
-      // Generate and download PDF
-      await generateContractPDF(contractToExport);
+      // Admin-only: fetch student and teacher bank_ids for PDF display
+      // Get profile data directly since get_user_role() seems to have issues
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id)
+        .single();
+      
+      const isAdmin = profileData?.role === 'admin';
+      console.log('PDF Debug - Direct profile check:', { profileData, isAdmin });
+      
+      // Always fetch bank_ids for admins, regardless of what's in the contract object
+      if (isAdmin) {
+        // Fetch student bank_id
+        const studentId = contract.student?.id;
+        if (studentId) {
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('bank_id')
+            .eq('id', studentId)
+            .single();
+          
+          if (studentData) {
+            contractToExport = {
+              ...contractToExport,
+              student: {
+                ...contractToExport.student,
+                bank_id: studentData.bank_id,
+              } as any,
+            };
+            console.log('PDF Debug - Updated student bank_id:', studentData.bank_id);
+          }
+        }
+
+        // Fetch teacher bank_id
+        const teacherId = contract.student?.teacher?.id;
+        if (teacherId) {
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('bank_id')
+            .eq('id', teacherId)
+            .single();
+          
+          if (teacherData) {
+            contractToExport = {
+              ...contractToExport,
+              student: {
+                ...contractToExport.student,
+                teacher: {
+                  ...contractToExport.student?.teacher,
+                  bank_id: teacherData.bank_id,
+                } as any,
+              } as any,
+            };
+            console.log('PDF Debug - Updated teacher bank_id:', teacherData.bank_id);
+          }
+        }
+      }
+
+      console.log('PDF Debug - Contract data before PDF generation:', {
+        isAdmin,
+        studentBankId: contractToExport.student?.bank_id,
+        teacherBankId: contractToExport.student?.teacher?.bank_id,
+        studentName: contractToExport.student?.name,
+        teacherName: contractToExport.student?.teacher?.name,
+        showBankIds: isAdmin
+      });
+
+      // Generate and download PDF (admins see bank IDs)
+      await generateContractPDF(contractToExport, { showBankIds: isAdmin });
       
       toast.success('PDF erfolgreich heruntergeladen', {
         description: `Vertrag für ${contract.student?.name} wurde als PDF gespeichert.`

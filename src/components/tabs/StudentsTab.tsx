@@ -17,9 +17,10 @@ import { toast } from 'sonner';
 import { ContractDetailsModal } from '@/components/modals/ContractDetailsModal';
 import { StudentCardView } from './StudentCardView';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function StudentsTab() {
-  const { profile, isAdmin, user } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const isMobile = useIsMobile();
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -52,15 +53,18 @@ export function StudentsTab() {
       let query = supabase
         .from('students')
         .select(`
-          *,
-          teacher:teachers(id, name, instrument),
-          contract:contracts!students_contract_id_fkey(id, contract_variant_id, status, attendance_count, discount_ids, custom_discount_percent, contract_variant:contract_variants(name, total_lessons))
+          id, name, instrument, status, bank_id, created_at,
+          contracts:contracts!fk_contracts_student_id(
+            id, contract_variant_id, status, attendance_count, discount_ids, custom_discount_percent,
+            teacher:teachers!contracts_teacher_id_fkey(id, name, instrument, bank_id),
+            contract_variant:contract_variants(name, total_lessons)
+          )
         `)
         .order('name', { ascending: true });
 
       // Filter by teacher for non-admin users
       if (profile?.role === 'teacher' && currentTeacherId) {
-        query = query.eq('teacher_id', currentTeacherId);
+        query = query.eq('contracts.teacher_id', currentTeacherId);
       }
 
       const { data, error } = await query;
@@ -70,7 +74,7 @@ export function StudentsTab() {
         return;
       }
 
-      setStudents(data || []);
+      setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to fetch students');
@@ -104,6 +108,28 @@ export function StudentsTab() {
     }
 
     setDeletingStudent(student);
+  };
+
+  const handleEmailClick = async (email: string) => {
+    if (email && email !== '-') {
+      try {
+        await navigator.clipboard.writeText(email);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      } catch (error) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = email;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success('E-Mail-Adresse kopiert', {
+          description: email
+        });
+      }
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -243,7 +269,7 @@ export function StudentsTab() {
     );
   }
 
-  console.log('Current user:', user);
+  // Removed debug log to avoid PII in console
 
   return (
     <div className="h-full flex flex-col space-y-8">
@@ -398,7 +424,23 @@ export function StudentsTab() {
                     <TableCell className="font-medium">{student.name}</TableCell>
                     <TableCell>{student.instrument}</TableCell>
                     {isAdmin && <TableCell>{student.teacher?.name || '-'}</TableCell>}
-                    <TableCell className="max-w-48 truncate">{student.email || '-'}</TableCell>
+                    <TableCell className="max-w-48 truncate">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span 
+                              className="cursor-pointer hover:underline"
+                              onClick={() => handleEmailClick(student.email || '')}
+                            >
+                              {student.email || '-'}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{student.email || '-'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                     <TableCell>{student.phone || '-'}</TableCell>
                     <TableCell>
                       {student.contract ? (

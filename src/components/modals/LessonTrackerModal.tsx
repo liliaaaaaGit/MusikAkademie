@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase, Contract } from '@/lib/supabase';
+import { useState, useEffect, useRef } from 'react';
+import { supabase, Contract, getContractDuration } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { fmtDate, fmtMonthYear, fmtRange } from '@/lib/utils';
+import { updateContractNotes } from '@/lib/actions/contractNotes';
 
 interface LessonTrackerModalProps {
   contract: Contract;
@@ -28,6 +30,10 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedLessons, setEditedLessons] = useState<Record<string, { date: string; comment: string; is_available: boolean }>>({});
+  
+  // Private notes stable local state (no remounting)
+  const [privateNotes, setPrivateNotes] = useState<string>('');
+  const initializedRef = useRef(false);
 
   const { profile } = useAuth();
   const isMobile = useIsMobile();
@@ -36,6 +42,16 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   useEffect(() => {
     if (open && contract) {
       fetchLessons();
+      // Initialize notes from contract data only once per modal open
+      if (!initializedRef.current) {
+        setPrivateNotes(contract.private_notes || '');
+        initializedRef.current = true;
+      }
+    }
+    
+    // Reset initialization flag when modal closes
+    if (!open) {
+      initializedRef.current = false;
     }
   }, [open, contract]);
 
@@ -89,9 +105,9 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
       [lessonId]: {
         ...prev[lessonId],
         is_available: isAvailable,
-        // Clear date and comment if marking as unavailable
+        // Only clear date if marking as unavailable; keep notes editable
         date: isAvailable ? prev[lessonId].date : '',
-        comment: isAvailable ? prev[lessonId].comment : ''
+        comment: prev[lessonId].comment
       }
     }));
   };
@@ -103,7 +119,22 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
     }
     setSaving(true);
     try {
-      // FIXED: Prepare updates with proper contract_id preservation
+      let hasNotesChanges = false;
+      
+      // 1. Save private notes first (if changed and user is admin/teacher)
+      if (isAdminOrTeacher && privateNotes !== (contract.private_notes || '')) {
+        hasNotesChanges = true;
+        try {
+          await updateContractNotes(contract.id, privateNotes);
+        } catch (error) {
+          console.error('Error saving private notes:', error);
+          toast.error('Fehler beim Speichern der Notizen');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 2. Prepare lesson updates with proper contract_id preservation
       const updates = Object.entries(editedLessons)
         .map(([lessonId, data]) => {
           const originalLesson = lessons.find(l => l.id === lessonId);
@@ -128,66 +159,74 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
         })
         .filter(Boolean);
 
-      if (updates.length === 0) {
+      // Check if there are any changes to save
+      if (updates.length === 0 && !hasNotesChanges) {
         toast.info('Keine Änderungen zu speichern');
         setSaving(false);
         return;
       }
 
-      // FIXED: Use safe batch update function to prevent contract_id issues
-      const { data: batchResult, error: batchError } = await supabase.rpc('batch_update_lessons', {
-        updates: updates
-      });
-
-      if (batchError) {
-        console.error('Batch update error:', batchError);
-        toast.error('Fehler beim Speichern der Stunden', { 
-          description: batchError.message 
-            });
-        setSaving(false);
-        return;
-          }
-
-      // Log the batch result for debugging
-      console.log('Batch update result:', batchResult);
-
-      // FIXED: Call the enhanced sync function to ensure contract attendance is correct
-        try {
-        const { data: syncResult, error: syncError } = await supabase.rpc('sync_contract_data', {
-            contract_id_param: contract.id
-          });
-
-        if (syncError) {
-          console.error('Error syncing contract data:', syncError);
-          // Log error but don't fail the operation
-          await supabase.rpc('log_contract_error', {
-            operation: 'lesson_tracking_sync',
-            contract_id_param: contract.id,
-            error_message: syncError.message
-          });
-        } else {
-          console.log('Contract data synced:', syncResult);
-          }
-        } catch (error) {
-        console.error('Error calling sync function:', error);
-        // Log error but don't fail the operation
-        await supabase.rpc('log_contract_error', {
-          operation: 'lesson_tracking_sync',
-          contract_id_param: contract.id,
-          error_message: error instanceof Error ? error.message : 'Unknown error'
+      // 3. Use safe batch update function to prevent contract_id issues
+      if (updates.length > 0) {
+        const { data: batchResult, error: batchError } = await supabase.rpc('batch_update_lessons', {
+          updates: updates
         });
-        }
 
-        // Force refresh the lessons to get updated data
-        await fetchLessons();
-        
-      toast.success(`${updates.length} Stunde${updates.length !== 1 ? 'n' : ''} erfolgreich aktualisiert`);
-        
-        // Call onUpdate to refresh the parent component
-        onUpdate();
-        
-        // Close the modal
-        onClose();
+        if (batchError) {
+          console.error('Batch update error:', batchError);
+          toast.error('Fehler beim Speichern der Stunden', { 
+            description: batchError.message 
+              });
+          setSaving(false);
+          return;
+            }
+
+        // Log the batch result for debugging
+        console.log('Batch update result:', batchResult);
+
+        // Check if the batch update was successful
+        if (batchResult && batchResult.success) {
+          // Check if contract should be marked as completed
+          try {
+            const { data: completionResult, error: completionError } = await supabase.rpc('check_contract_completion_after_lessons', {
+              contract_id_param: contract.id
+            });
+
+            if (completionError) {
+              console.error('Error checking contract completion:', completionError);
+            } else {
+              console.log('Contract completion check result:', completionResult);
+            }
+          } catch (error) {
+            console.error('Error calling contract completion check:', error);
+          }
+
+          // Force refresh the lessons to get updated data
+          await fetchLessons();
+        } else {
+          // Handle batch update failure
+          const errorMessage = batchResult?.errors?.join(', ') || 'Unbekannter Fehler beim Speichern';
+          toast.error(`Fehler beim Speichern: ${errorMessage}`);
+          console.error('Batch update failed:', batchResult);
+          setSaving(false);
+          return;
+        }
+      }
+      
+      // Show success message
+      if (hasNotesChanges && updates.length > 0) {
+        toast.success('Notizen und Stunden erfolgreich aktualisiert');
+      } else if (hasNotesChanges) {
+        toast.success('Notizen erfolgreich gespeichert');
+      } else {
+        toast.success(`${updates.length} Stunde${updates.length !== 1 ? 'n' : ''} erfolgreich aktualisiert`);
+      }
+      
+      // Call onUpdate to refresh the parent component
+      onUpdate();
+      
+      // Close the modal
+      onClose();
     } catch (error) {
       console.error('Error updating lessons:', error);
       
@@ -231,7 +270,7 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
       case 'completed-with-notes':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-blue-600" />;
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'unavailable':
         return <XCircle className="h-4 w-4 text-red-600" />;
       default:
@@ -245,7 +284,7 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
         case 'completed-with-notes':
           return 'bg-green-100 text-green-800';
         case 'completed':
-          return 'bg-blue-100 text-blue-800';
+          return 'bg-green-100 text-green-800';
         case 'unavailable':
           return 'bg-red-100 text-red-800';
         default:
@@ -294,19 +333,23 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
     return 'pending';
   };
 
-  const getContractTypeDisplayGerman = (type: string) => {
-    switch (type) {
+  const getContractTypeDisplayUnified = (c: Contract) => {
+    if (c.contract_variant?.name) return c.contract_variant.name;
+    // Legacy fallback
+    switch (c.type) {
       case 'ten_class_card':
         return '10er Karte';
       case 'half_year':
         return 'Halbjahresvertrag';
       default:
-        return type;
+        return c.type || '-';
     }
   };
 
-  const getContractDurationGerman = (type: string) => {
-    switch (type) {
+  const getContractDurationUnified = (c: Contract) => {
+    if (c.contract_variant) return getContractDuration(c.contract_variant);
+    // Legacy fallback
+    switch (c.type) {
       case 'ten_class_card':
         return '3 Monate';
       case 'half_year':
@@ -320,38 +363,64 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   if (isMobile && isAdminOrTeacher) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg w-full p-0 overflow-y-auto max-h-[80vh]">
-          <div className="p-4">
-            {/* Contract Overview Card (reuse structure from ContractDetailsModal) */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-100 p-4 mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-lg font-semibold truncate">{contract.student?.name || '-'}</div>
-                <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                  {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
-                </Badge>
-              </div>
-              <div className="flex flex-col gap-1 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Typ:</span>
-                  <span>{contract.contract_variant?.name || contract.type || '-'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Instrument:</span>
-                  <span>{contract.student?.instrument || '-'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Lehrer:</span>
-                  <span>{contract.student?.teacher?.name || '-'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Fortschritt:</span>
-                  <span>{contract.attendance_count || '-'}</span>
-                </div>
-              </div>
+        <DialogContent className="w-screen h-[100svh] max-w-none p-0 rounded-none overflow-hidden md:rounded-lg md:max-w-6xl md:h-auto">
+          {/* Sticky header */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="text-base font-semibold truncate">Stundenverfolgung – {contract.student?.name || '-'}</div>
+              <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
+                {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
+              </Badge>
             </div>
+          </div>
 
-            {/* Lessons Accordion */}
-            <Accordion type="single" collapsible className="w-full">
+          {/* Scrollable body */}
+          <div className="flex flex-col h-[calc(100svh-0px)] md:h-auto">
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24">
+              {/* Contract Overview Card (compact) */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium">Typ:</span>{' '}
+                    <span>{contract.contract_variant?.name || contract.type || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Instrument:</span>{' '}
+                    <span>{contract.student?.instrument || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Lehrer:</span>{' '}
+                    <span>{contract.student?.teacher?.name || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Fortschritt:</span>{' '}
+                    <span>{contract.attendance_count || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Private Notes Panel - INLINED */}
+              {isAdminOrTeacher && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      Notizen (nur intern)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={privateNotes}
+                      onChange={(e) => setPrivateNotes(e.target.value)}
+                      placeholder="Notizen hinzufügen (z.B. besondere Vereinbarungen, wichtige Hinweise, etc.)"
+                      className="min-h-[100px] resize-none focus:ring-brand-primary focus:border-brand-primary"
+                      rows={4}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Lessons Accordion */}
+              <Accordion type="single" collapsible className="w-full">
               {lessons.map((lesson) => {
                 const editedData = editedLessons[lesson.id] || { date: '', comment: '', is_available: true };
                 const status = getLessonStatus(lesson);
@@ -396,27 +465,10 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
                           <Textarea
                             value={editedData.comment}
                             onChange={(e) => handleLessonChange(lesson.id, 'comment', e.target.value)}
-                            placeholder={editedData.is_available ? "Notizen hinzufügen (z.B. Hausaufgaben gegeben, Stunde verpasst, etc.)" : "Stunde nicht verfügbar"}
+                            placeholder={editedData.is_available ? "Notizen hinzufügen (z.B. Hausaufgaben gegeben, Stunde verpasst, etc.)" : "Grund/Notiz zur Ausfallstunde …"}
                             className="min-h-[60px] resize-none focus:ring-brand-primary focus:border-brand-primary"
                             rows={2}
-                            disabled={!editedData.is_available}
                           />
-                        </div>
-                        <div className="flex gap-2 mt-2">
-                          <Button 
-                            onClick={handleSave} 
-                            disabled={saving || loading}
-                            className="bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary w-full"
-                          >
-                            {saving ? 'Speichern...' : 'Speichern'}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={onClose}
-                            className="w-full"
-                          >
-                            Schließen
-                          </Button>
                         </div>
                       </div>
                     </AccordionContent>
@@ -424,6 +476,27 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
                 );
               }).filter(Boolean)}
             </Accordion>
+            </div>
+
+            {/* Sticky footer */}
+            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t px-4 py-3 pb-[env(safe-area-inset-bottom)]">
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={onClose}
+                  className="flex-1"
+                >
+                  Abbrechen
+                </Button>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving || loading}
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary"
+                >
+                  {saving ? 'Speichern...' : 'Fortschritt speichern'}
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -459,11 +532,11 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div>
                 <span className="text-sm font-medium text-gray-600">Typ:</span>
-                <p className="text-sm">{getContractTypeDisplayGerman(contract.type)}</p>
+                <p className="text-sm">{getContractTypeDisplayUnified(contract)}</p>
               </div>
               <div>
                 <span className="text-sm font-medium text-gray-600">Laufzeit:</span>
-                <p className="text-sm">{getContractDurationGerman(contract.type)}</p>
+                <p className="text-sm">{getContractDurationUnified(contract)}</p>
               </div>
               <div>
                 <span className="text-sm font-medium text-gray-600">Instrument:</span>
@@ -476,7 +549,32 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
                 </Badge>
               </div>
             </div>
-            
+
+            {/* NEW: Payment & Cancellation badges + Laufzeit label */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {contract.billing_cycle === 'upfront' && contract.paid_at && (
+                <Badge variant="secondary">Bezahlt am {fmtDate(contract.paid_at)}</Badge>
+              )}
+              {contract.billing_cycle === 'monthly' && contract.paid_through && (
+                <Badge variant="secondary">Bezahlt bis {fmtMonthYear(contract.paid_through)}</Badge>
+              )}
+              {contract.billing_cycle === 'monthly' && contract.paid_through && new Date(contract.paid_through) < new Date() && (
+                <Badge variant="outline">Überfällig</Badge>
+              )}
+              {contract.cancelled_at && (
+                <Badge variant="destructive" className="bg-transparent text-red-600 border-red-300">Gekündigt zum {fmtDate(contract.cancelled_at)}</Badge>
+              )}
+            </div>
+
+            {(contract.term_label || contract.term_start || contract.term_end) && (
+              <div className="mb-4">
+                <span className="text-sm font-medium text-gray-600">Laufzeit:</span>
+                <span className="text-sm ml-2">
+                  {contract.term_label || fmtRange(contract.term_start, contract.term_end)}
+                </span>
+              </div>
+            )}
+
             {/* Progress Bar */}
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div 
@@ -494,6 +592,26 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
           </CardContent>
         </Card>
 
+        {/* Private Notes Panel - INLINED */}
+        {isAdminOrTeacher && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">
+                Notizen (nur intern)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={privateNotes}
+                onChange={(e) => setPrivateNotes(e.target.value)}
+                placeholder="Notizen hinzufügen (z.B. besondere Vereinbarungen, wichtige Hinweise, etc.)"
+                className="min-h-[100px] resize-none focus:ring-brand-primary focus:border-brand-primary"
+                rows={4}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
@@ -504,8 +622,6 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
               <h3 className="text-lg font-medium">Stundenfortschritt</h3>
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span>Abgeschlossen + Notizen</span>
-                <CheckCircle className="h-4 w-4 text-blue-600 ml-3" />
                 <span>Abgeschlossen</span>
                 <Clock className="h-4 w-4 text-gray-400 ml-3" />
                 <span>Ausstehend</span>
@@ -568,10 +684,9 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
                           <Textarea
                             value={editedData.comment}
                             onChange={(e) => handleLessonChange(lesson.id, 'comment', e.target.value)}
-                            placeholder={editedData.is_available ? "Notizen hinzufügen (z.B. Hausaufgaben gegeben, Stunde verpasst, etc.)" : "Stunde nicht verfügbar"}
+                            placeholder={editedData.is_available ? "Notizen hinzufügen (z.B. Hausaufgaben gegeben, Stunde verpasst, etc.)" : "Grund/Notiz zur Ausfallstunde …"}
                             className="min-h-[60px] resize-none focus:ring-brand-primary focus:border-brand-primary"
                             rows={2}
-                            disabled={!editedData.is_available}
                           />
                         </TableCell>
                         <TableCell>
@@ -597,11 +712,11 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
           <div className="flex items-center gap-4 text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <FileText className="h-4 w-4" />
-              <span>Vertrag: {getContractTypeDisplayGerman(contract.type)}</span>
+              <span>Vertrag: {getContractTypeDisplayUnified(contract)}</span>
             </div>
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span>Gültig für: {getContractDurationGerman(contract.type)}</span>
+              <span>Gültig für: {getContractDurationUnified(contract)}</span>
             </div>
           </div>
           <div className="flex gap-2">

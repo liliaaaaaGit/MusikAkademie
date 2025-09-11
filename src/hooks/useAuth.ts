@@ -63,6 +63,8 @@ export function useAuth() {
         console.log('No profile found for user:', userId);
         // Try to create profile manually
         await createProfileManually(userId);
+        // Don't set loading to false here - let createProfileManually handle it
+        return;
       }
     } catch (error) {
       console.error('Error fetching profile:', error);

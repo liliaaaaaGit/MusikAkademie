@@ -27,7 +27,7 @@ begin
     select count(distinct c.student_id)
     from public.contracts c
     where c.teacher_id = p_teacher_id
-      and coalesce(c.is_active, true) = true
+      and c.status = 'active'
   ), 0)
   where t.id = p_teacher_id;
 end;

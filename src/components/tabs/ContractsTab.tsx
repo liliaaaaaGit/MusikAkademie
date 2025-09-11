@@ -46,18 +46,15 @@ export function ContractsTab() {
 
   // Filter students for contract form based on context
   const studentsForContractForm = useMemo(() => {
-    if (isAdmin && selectedTeacherForContracts) {
-      // Admin viewing specific teacher's contracts - filter to students who have contracts with this teacher
-      return students.filter(s => s.contracts?.some(c => c.teacher?.id === selectedTeacherForContracts.id));
-    } else if (isAdmin && !selectedTeacherForContracts) {
-      // Admin viewing all contracts - show all students
+    if (isAdmin) {
+      // Admins can see all students globally for contract creation
       return students;
     } else if (profile?.role === 'teacher' && currentTeacher) {
       // Teacher view - show only students with contracts assigned to this teacher
       return students.filter(s => s.contracts?.some(c => c.teacher?.id === currentTeacher.id));
     }
     return [];
-  }, [isAdmin, selectedTeacherForContracts, students, profile, currentTeacher]);
+  }, [isAdmin, students, profile, currentTeacher]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -245,7 +242,7 @@ export function ContractsTab() {
       let query = supabase
         .from('students')
         .select(`
-          id, name, instrument, status, bank_id, created_at,
+          id, name, instrument, email, phone, status, bank_id, created_at,
           contracts:contracts!fk_contracts_student_id(
             id,
             teacher:teachers!contracts_teacher_id_fkey(id, name, profile_id, instrument, bank_id)
@@ -1023,6 +1020,7 @@ export function ContractsTab() {
             </DialogHeader>
             <ContractForm
               students={studentsForContractForm}
+              teachers={teachers}
               initialStudentId={selectedStudentForNewContract}
               onSuccess={() => {
                 setShowAddForm(false);
@@ -1049,6 +1047,7 @@ export function ContractsTab() {
               <ContractForm
                 contract={editingContract}
                 students={studentsForContractForm}
+                teachers={teachers}
                 onSuccess={() => {
                   setEditingContract(null);
                   refreshContractData();

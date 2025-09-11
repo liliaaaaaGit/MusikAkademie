@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, Notification, Contract, Student, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
+import { supabase, Notification, Contract, Student, Teacher, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,11 +23,13 @@ export function NotificationsTab() {
   const [showNewContractForm, setShowNewContractForm] = useState(false);
   const [selectedStudentForNewContract, setSelectedStudentForNewContract] = useState<string>('');
   const [students, setStudents] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
 
   useEffect(() => {
     if (isAdmin || profile?.role === 'teacher') {
       fetchNotifications();
       fetchStudents();
+      fetchTeachers();
     }
   }, [isAdmin, profile]);
 
@@ -93,6 +95,24 @@ export function NotificationsTab() {
       setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);
+    }
+  };
+
+  const fetchTeachers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching teachers:', error);
+        return;
+      }
+
+      setTeachers(data || []);
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
     }
   };
 
@@ -832,6 +852,7 @@ export function NotificationsTab() {
           </DialogHeader>
           <ContractForm
             students={students}
+            teachers={teachers}
             initialStudentId={selectedStudentForNewContract}
             onSuccess={() => {
               setShowNewContractForm(false);

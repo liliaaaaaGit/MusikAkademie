@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Contract, Student, ContractCategory, ContractVariant, ContractDiscount, ContractPricing, calculateContractPrice, getLegacyContractType } from '@/lib/supabase';
+import { supabase, Contract, Student, Teacher, ContractCategory, ContractVariant, ContractDiscount, ContractPricing, calculateContractPrice, getLegacyContractType } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { FileText } from 'lucide-react';
 interface ContractFormProps {
   contract?: Contract;
   students: Student[];
+  teachers: Teacher[];
   onSuccess: () => void;
   onCancel: () => void;
   initialStudentId?: string;
@@ -48,7 +49,7 @@ const deepCopy = <T,>(obj: T): T => {
   return obj;
 };
 
-export function ContractForm({ contract, students, onSuccess, onCancel, initialStudentId }: ContractFormProps) {
+export function ContractForm({ contract, students, teachers, onSuccess, onCancel, initialStudentId }: ContractFormProps) {
   const { profile, isAdmin } = useAuth();
   
   // Enhanced teacher profile resolution
@@ -85,6 +86,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
 
   const [formData, setFormData] = useState({
     student_id: contract?.student_id || initialStudentId || '',
+    teacher_id: contract?.teacher_id || '',
     selectedCategoryId: '',
     selectedVariantId: contract?.contract_variant_id || '',
     selectedDiscountIds: contract?.discount_ids || []
@@ -245,6 +247,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
     const discountIds = formData.selectedDiscountIds.filter(id => id !== 'custom-discount');
     const contractData = {
       student_id: formData.student_id,
+      teacher_id: formData.teacher_id,
       type: getLegacyContractType(selectedCategory?.name || ''),
       contract_variant_id: formData.selectedVariantId,
       discount_ids: discountIds.length > 0 ? discountIds : null,
@@ -323,6 +326,12 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
         return;
       }
 
+      if (!formData.teacher_id) {
+        toast.error('Bitte wählen Sie einen Lehrer aus');
+        setLoading(false);
+        return;
+      }
+
       if (!formData.selectedVariantId) {
         toast.error('Bitte wählen Sie eine Vertragsvariante aus');
         setLoading(false);
@@ -351,9 +360,9 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
           return;
       }
 
-      // Check for existing active contract (for new contracts only)
+      // Check for existing active contract with same (student_id, teacher_id) pair (for new contracts only)
       if (!contract && !isReplacementConfirmed) {
-        const { data: existingContracts, error: checkError } = await supabase
+        const { data: existingContract, error: checkError } = await supabase
           .from('contracts')
           .select(`
             *,
@@ -368,7 +377,9 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
             lessons:lessons(id, lesson_number, date, is_available, comment)
           `)
           .eq('student_id', formData.student_id)
-          .eq('status', 'active');
+          .eq('teacher_id', formData.teacher_id)
+          .eq('status', 'active')
+          .maybeSingle();
 
         if (checkError) {
           toast.error('Fehler beim Prüfen bestehender Verträge', { description: checkError.message });
@@ -376,9 +387,8 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
           return;
         }
 
-        if (existingContracts && existingContracts.length > 0) {
+        if (existingContract) {
           // Fetch discount details if needed
-          const existingContract = existingContracts[0];
           let appliedDiscounts = [];
           
           if (existingContract.discount_ids && existingContract.discount_ids.length > 0) {
@@ -525,9 +535,9 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
                           <Badge variant="outline" className="text-xs">
                             {student.instrument}
                           </Badge>
-                          {student.teacher && (
+                          {student.email && (
                             <Badge variant="secondary" className="text-xs">
-                              {student.teacher.name}
+                              {student.email}
                             </Badge>
                           )}
                         </div>
@@ -536,6 +546,41 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
                 </SelectContent>
               </Select>
             </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Teacher Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Lehrer auswählen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="teacher">Lehrer *</Label>
+                <Select 
+                  value={formData.teacher_id} 
+                  onValueChange={(value) => handleChange('teacher_id', value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Lehrer auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{teacher.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {teacher.instrument}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -813,7 +858,7 @@ export function ContractForm({ contract, students, onSuccess, onCancel, initialS
           </Button>
           <Button 
             type="submit" 
-            disabled={loading || availableStudents.length === 0 || !formData.selectedVariantId}
+            disabled={loading || availableStudents.length === 0 || !formData.selectedVariantId || !formData.teacher_id}
             className="bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary"
           >
             {loading ? 'Speichern...' : contract ? 'Vertrag aktualisieren' : 'Vertrag erstellen'}

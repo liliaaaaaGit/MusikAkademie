@@ -53,11 +53,10 @@ export function StudentsTab() {
       let query = supabase
         .from('students')
         .select(`
-          id, name, instrument, status, bank_id, created_at,
+          id, name, instrument, email, phone, status, bank_id, created_at,
           contracts:contracts!fk_contracts_student_id(
-            id, contract_variant_id, status, attendance_count, discount_ids, custom_discount_percent,
-            teacher:teachers!contracts_teacher_id_fkey(id, name, instrument, bank_id),
-            contract_variant:contract_variants(name, total_lessons)
+            id,
+            teacher:teachers!contracts_teacher_id_fkey(id, name)
           )
         `)
         .order('name', { ascending: true });
@@ -178,39 +177,6 @@ export function StudentsTab() {
     }
   };
 
-  const getContractDisplay = (student: Student) => {
-    if (student.contract?.contract_variant?.name) {
-      return student.contract.contract_variant.name;
-    }
-    return '-';
-  };
-
-  // Helper function to get the correct contract progress display
-  const getContractProgress = (student: Student) => {
-    if (!student.contract) {
-      return '-';
-    }
-
-    // Parse the attendance_count string to get completed lessons
-    const attendanceCount = student.contract.attendance_count;
-    if (!attendanceCount || !attendanceCount.includes('/')) {
-      return attendanceCount || '-';
-    }
-
-    const [completedStr] = attendanceCount.split('/');
-    const completed = parseInt(completedStr, 10) || 0;
-
-    // Get total lessons from contract variant if available
-    const totalLessons = student.contract.contract_variant?.total_lessons;
-    
-    if (totalLessons && totalLessons > 0) {
-      // Use the actual total lessons from the contract variant
-      return `${completed}/${totalLessons}`;
-    }
-
-    // Fallback to the original attendance_count if contract variant data is not available
-    return attendanceCount;
-  };
 
   const canEditStudent = () => {
     // Teachers cannot edit students - only admins can
@@ -423,7 +389,19 @@ export function StudentsTab() {
                   <TableRow key={student.id} className="hover:bg-gray-50">
                     <TableCell className="font-medium">{student.name}</TableCell>
                     <TableCell>{student.instrument}</TableCell>
-                    {isAdmin && <TableCell>{student.teacher?.name || '-'}</TableCell>}
+                    {isAdmin && (
+                      <TableCell>
+                        {student.contracts && student.contracts.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {Array.from(new Set(student.contracts.map(c => c.teacher?.name).filter(Boolean))).map((teacherName, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {teacherName}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : '-'}
+                      </TableCell>
+                    )}
                     <TableCell className="max-w-48 truncate">
                       <TooltipProvider>
                         <Tooltip>
@@ -443,13 +421,13 @@ export function StudentsTab() {
                     </TableCell>
                     <TableCell>{student.phone || '-'}</TableCell>
                     <TableCell>
-                      {student.contract ? (
+                      {student.contracts && student.contracts.length > 0 ? (
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-gray-900">
-                            {getContractDisplay(student)}
+                            {student.contracts.length} Vertrag{student.contracts.length !== 1 ? 'e' : ''}
                           </span>
                           <span className="text-xs text-gray-500 mt-1">
-                            {getContractProgress(student)}
+                            {student.contracts.filter(c => c.status === 'active').length} aktiv
                           </span>
                         </div>
                       ) : (

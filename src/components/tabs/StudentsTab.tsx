@@ -378,7 +378,7 @@ export function StudentsTab() {
                   {isAdmin && <TableHead>Lehrer</TableHead>}
                   <TableHead>E-Mail</TableHead>
                   <TableHead>Telefon</TableHead>
-                  <TableHead>Vertrag</TableHead>
+                  <TableHead>Verträge</TableHead>
                   {isAdmin && <TableHead>Bank-ID</TableHead>}
                   <TableHead>Status</TableHead>
                   {isAdmin && <TableHead className="text-right">Aktionen</TableHead>}
@@ -391,15 +391,13 @@ export function StudentsTab() {
                     <TableCell>{student.instrument}</TableCell>
                     {isAdmin && (
                       <TableCell>
-                        {student.contracts && student.contracts.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {Array.from(new Set(student.contracts.map(c => c.teacher?.name).filter(Boolean))).map((teacherName, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {teacherName}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : '-'}
+                        {student.contracts && student.contracts.length > 0
+                          ? Array.from(new Set(
+                              student.contracts
+                                .map(c => c.teacher?.name)
+                                .filter(Boolean)
+                            )).join(', ')
+                          : '-'}
                       </TableCell>
                     )}
                     <TableCell className="max-w-48 truncate">
@@ -421,18 +419,9 @@ export function StudentsTab() {
                     </TableCell>
                     <TableCell>{student.phone || '-'}</TableCell>
                     <TableCell>
-                      {student.contracts && student.contracts.length > 0 ? (
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-gray-900">
-                            {student.contracts.length} Vertrag{student.contracts.length !== 1 ? 'e' : ''}
-                          </span>
-                          <span className="text-xs text-gray-500 mt-1">
-                            {student.contracts.filter(c => c.status === 'active').length} aktiv
-                          </span>
-                        </div>
-                      ) : (
-                        '-'
-                      )}
+                      {student.contracts && student.contracts.length > 0
+                        ? String(student.contracts.length)
+                        : '0'}
                     </TableCell>
                     {isAdmin && (
                       <TableCell>

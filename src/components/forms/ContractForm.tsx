@@ -160,6 +160,36 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
     }
   }, [contract]);
 
+  // Refetch cohort-aware variants whenever the selected student changes
+  useEffect(() => {
+    const loadVariantsForStudent = async () => {
+      try {
+        if (formData.student_id) {
+          const { data, error } = await supabase.rpc('get_variants_for_student', { p_student_id: formData.student_id });
+          if (error) {
+            toast.error('Fehler beim Laden der Vertragsvarianten', { description: error.message });
+            setContractVariants([]);
+            return;
+          }
+          setContractVariants(data || []);
+          // Reset selected variant if it does not belong to the list anymore
+          if (formData.selectedVariantId && !(data || []).some((v: any) => v.id === formData.selectedVariantId)) {
+            setFormData(prev => ({ ...prev, selectedVariantId: '' }));
+          }
+        } else {
+          setContractVariants([]);
+          if (formData.selectedVariantId) {
+            setFormData(prev => ({ ...prev, selectedVariantId: '' }));
+          }
+        }
+      } catch (e) {
+        console.error('Error loading variants for student', e);
+        setContractVariants([]);
+      }
+    };
+    loadVariantsForStudent();
+  }, [formData.student_id]);
+
   // Calculate pricing when variant or discounts change
   useEffect(() => {
     if (formData.selectedVariantId) {
@@ -184,18 +214,20 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
 
       setContractCategories(categoriesData || []);
 
-      // Fetch contract variants
-      const { data: variantsData, error: variantsError } = await supabase
-        .from('contract_variants')
-        .select('*')
-        .order('name');
+      // Fetch contract variants (cohort-aware) when a student is selected
+      if (formData.student_id) {
+        const { data: variantsData, error: variantsError } = await supabase
+          .rpc('get_variants_for_student', { p_student_id: formData.student_id });
 
-      if (variantsError) {
-        toast.error('Fehler beim Laden der Vertragsvarianten', { description: variantsError.message });
-        return;
+        if (variantsError) {
+          toast.error('Fehler beim Laden der Vertragsvarianten', { description: variantsError.message });
+          return;
+        }
+
+        setContractVariants(variantsData || []);
+      } else {
+        setContractVariants([]);
       }
-
-      setContractVariants(variantsData || []);
 
       // Fetch contract discounts
       const { data: discountsData, error: discountsError } = await supabase

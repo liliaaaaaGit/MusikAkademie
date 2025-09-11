@@ -1,6 +1,20 @@
--- 1) Drop obsolete trigger on students (if present)
+-- 1) Drop obsolete triggers and functions on students (if present)
 do $$
 begin
+  -- Drop the old trigger
+  if exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'students'
+      and t.tgname = 'trigger_update_teacher_student_count'
+  ) then
+    drop trigger trigger_update_teacher_student_count on public.students;
+  end if;
+  
+  -- Also drop the alternative trigger name
   if exists (
     select 1
     from pg_trigger t
@@ -13,6 +27,9 @@ begin
     drop trigger trg_update_teacher_student_count on public.students;
   end if;
 end$$;
+
+-- Drop the old function that references students.teacher_id
+drop function if exists public.update_teacher_student_count();
 
 -- 2) Replace the old function with a contracts-based version
 create or replace function public.refresh_teacher_student_count(p_teacher_id uuid)

@@ -164,6 +164,8 @@ export function useAuth() {
       await supabase.auth.signOut();
       setProfile(null);
       setUser(null);
+    } finally {
+      setLoading(false);
     }
   };
 

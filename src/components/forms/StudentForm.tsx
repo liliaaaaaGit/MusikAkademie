@@ -259,8 +259,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       instrument: finalInstrument,
       email: formData.email.trim() || null,
       phone: formData.phone.trim() || null,
-      status: formData.status,
-      teacher_id: formData.teacher_id || null
+      status: formData.status
     };
 
     // Clean up null/empty values
@@ -306,6 +305,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     // FIXED: Prepare contract data for safe save
     const contractData = {
       student_id: studentId,
+      teacher_id: formData.teacher_id, // Add teacher_id to contract
       type: getLegacyContractType(selectedCategory.name),
       contract_variant_id: formData.selectedVariantId,
       status: 'active',
@@ -322,8 +322,8 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       payment_type: calculatedPricing?.payment_type || null
     };
 
-    // FIXED: Use safe save function with comprehensive error handling
-    const { data: saveResult, error: saveError } = await supabase.rpc('safe_save_contract', {
+    // FIXED: Use atomic save function with comprehensive error handling
+    const { data: saveResult, error: saveError } = await supabase.rpc('atomic_save_and_sync_contract', {
       contract_data: contractData,
       is_update: !!student?.contract,
       contract_id_param: student?.contract?.id || null

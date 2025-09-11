@@ -170,15 +170,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
         return;
       }
 
-      // Fetch contract variants with category data
+      // Fetch contract variants using RPC - pass null for new students to get current price version
       const { data: variants, error: variantsError } = await supabase
-        .from('contract_variants')
-        .select(`
-          *,
-          contract_category:contract_categories(*)
-        `)
-        .eq('is_active', true)
-        .order('name');
+        .rpc('get_variants_for_student', { p_student_id: student?.id || null });
 
       if (variantsError) {
         console.error('Error fetching contract variants:', variantsError);

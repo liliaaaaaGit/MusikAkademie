@@ -3,13 +3,19 @@
 
 BEGIN;
 
--- 1) Drop all existing notification trigger functions that might have the old reference
-DROP FUNCTION IF EXISTS public.notify_contract_completion();
-DROP FUNCTION IF EXISTS public.notify_contract_fulfilled();
-DROP FUNCTION IF EXISTS public.handle_contract_notification();
-DROP FUNCTION IF EXISTS public.trigger_contract_completion();
+-- 1) Drop all existing triggers first (they depend on the functions)
+DROP TRIGGER IF EXISTS trigger_contract_completion ON contracts;
+DROP TRIGGER IF EXISTS trigger_contract_fulfilled ON contracts;
+DROP TRIGGER IF EXISTS trigger_notify_contract_completion ON contracts;
+DROP TRIGGER IF EXISTS trigger_contract_fulfilled_notification ON contracts;
 
--- 2) Create a single, comprehensive notification trigger function
+-- 2) Now drop all existing notification trigger functions
+DROP FUNCTION IF EXISTS public.notify_contract_completion() CASCADE;
+DROP FUNCTION IF EXISTS public.notify_contract_fulfilled() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_contract_notification() CASCADE;
+DROP FUNCTION IF EXISTS public.trigger_contract_completion() CASCADE;
+
+-- 3) Create a single, comprehensive notification trigger function
 CREATE OR REPLACE FUNCTION public.notify_contract_completion()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -152,17 +158,13 @@ BEGIN
 END;
 $$;
 
--- 3) Drop existing triggers and recreate with the fixed function
-DROP TRIGGER IF EXISTS trigger_contract_completion ON contracts;
-DROP TRIGGER IF EXISTS trigger_contract_fulfilled ON contracts;
-DROP TRIGGER IF EXISTS trigger_notify_contract_completion ON contracts;
-
+-- 4) Create the new trigger with the fixed function
 CREATE TRIGGER trigger_contract_completion
   AFTER UPDATE ON contracts
   FOR EACH ROW
   EXECUTE FUNCTION public.notify_contract_completion();
 
--- 4) Grant permissions
+-- 5) Grant permissions
 GRANT EXECUTE ON FUNCTION public.notify_contract_completion() TO authenticated;
 
 COMMIT;

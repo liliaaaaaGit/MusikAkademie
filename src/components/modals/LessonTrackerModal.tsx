@@ -168,6 +168,13 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
 
       // 3. Use safe batch update function to prevent contract_id issues
       if (updates.length > 0) {
+        // Debug: Log what we're sending to the batch update
+        console.log('Sending batch update with data:', {
+          updatesCount: updates.length,
+          updates: updates,
+          contractId: contract.id
+        });
+        
         const { data: batchResult, error: batchError } = await supabase.rpc('batch_update_lessons', {
           updates: updates
         });
@@ -204,7 +211,22 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
           // Force refresh the lessons to get updated data
           await fetchLessons();
         } else {
-          // Handle batch update failure
+          // Handle batch update failure - log detailed error information
+          console.error('Batch update failed with details:', {
+            success: batchResult?.success,
+            error_count: batchResult?.error_count,
+            success_count: batchResult?.success_count,
+            errors: batchResult?.errors,
+            processed_contracts: batchResult?.processed_contracts
+          });
+          
+          // Log each individual error
+          if (batchResult?.errors && Array.isArray(batchResult.errors)) {
+            batchResult.errors.forEach((error: string, index: number) => {
+              console.error(`Error ${index + 1}:`, error);
+            });
+          }
+          
           const errorMessage = batchResult?.errors?.join(', ') || 'Unbekannter Fehler beim Speichern';
           toast.error(`Fehler beim Speichern: ${errorMessage}`);
           console.error('Batch update failed:', batchResult);

@@ -196,10 +196,12 @@ BEGIN
         contract_id = new_contract_id
     WHERE contract_operation_log.id = operation_id;
 
-    -- Return the saved contract data
-    SELECT to_jsonb(c) INTO result
-    FROM public.contracts c
-    WHERE c.id = new_contract_id;
+    -- Return success response with contract_id (expected by frontend)
+    result := jsonb_build_object(
+        'success', true,
+        'contract_id', new_contract_id,
+        'message', 'Contract saved successfully'
+    );
 
     RETURN result;
 

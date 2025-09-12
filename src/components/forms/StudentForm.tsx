@@ -302,12 +302,12 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       throw new Error('Vertragskategorie nicht gefunden');
     }
 
-    // FIXED: Prepare contract data for safe save
+    // FIXED: Prepare contract data for safe save with UUID validation
     const contractData = {
       student_id: studentId,
-      teacher_id: formData.teacher_id, // Add teacher_id to contract
+      teacher_id: formData.teacher_id && formData.teacher_id.trim() !== '' ? formData.teacher_id : null,
       type: getLegacyContractType(selectedCategory.name),
-      contract_variant_id: formData.selectedVariantId,
+      contract_variant_id: formData.selectedVariantId && formData.selectedVariantId.trim() !== '' ? formData.selectedVariantId : null,
       status: 'active',
       // FIXED: Handle discount IDs properly
       discount_ids: formData.selectedDiscountIds.filter(id => id !== 'custom-discount').length > 0 
@@ -321,6 +321,23 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
       final_price: calculatedPricing?.final_monthly_price || calculatedPricing?.final_one_time_price || null,
       payment_type: calculatedPricing?.payment_type || null
     };
+
+    // Validate required UUID fields
+    if (!contractData.teacher_id) {
+      throw new Error('Lehrer muss ausgewählt werden');
+    }
+    if (!contractData.contract_variant_id) {
+      throw new Error('Vertragsvariante muss ausgewählt werden');
+    }
+
+    // Debug logging to help identify the issue
+    console.log('Contract data being sent:', {
+      student_id: contractData.student_id,
+      teacher_id: contractData.teacher_id,
+      contract_variant_id: contractData.contract_variant_id,
+      type: contractData.type,
+      status: contractData.status
+    });
 
     // FIXED: Use atomic save function with comprehensive error handling
     const { data: saveResult, error: saveError } = await supabase.rpc('atomic_save_and_sync_contract', {

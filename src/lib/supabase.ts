@@ -111,6 +111,7 @@ export interface Contract {
   billing_cycle?: 'monthly' | 'upfront' | null;
   paid_at?: string | null;
   paid_through?: string | null;
+  first_payment_date?: string | null;
   term_start?: string | null;
   term_end?: string | null;
   term_label?: string | null;

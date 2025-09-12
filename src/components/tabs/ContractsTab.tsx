@@ -432,7 +432,7 @@ export function ContractsTab() {
       const { data: freshContract, error: freshError } = await supabase
         .from('contracts')
         .select(`
-          id, billing_cycle, paid_at, paid_through, term_start, term_end, term_label, cancelled_at,
+          id, billing_cycle, paid_at, paid_through, first_payment_date, term_start, term_end, term_label, cancelled_at,
           student:students!fk_contracts_student_id(id, name, instrument, status, bank_id),
           teacher:teachers!contracts_teacher_id_fkey(id, name, bank_id),
           contract_variant:contract_variants(

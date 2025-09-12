@@ -101,6 +101,11 @@ BEGIN
                 THEN (contract_data->>'paid_through')::timestamptz 
                 ELSE NULL 
             END,
+            first_payment_date = CASE 
+                WHEN contract_data->>'first_payment_date' IS NOT NULL 
+                THEN (contract_data->>'first_payment_date')::timestamptz 
+                ELSE NULL 
+            END,
             term_start = CASE 
                 WHEN contract_data->>'term_start' IS NOT NULL 
                 THEN (contract_data->>'term_start')::timestamptz 
@@ -133,6 +138,7 @@ BEGIN
             billing_cycle,
             paid_at,
             paid_through,
+            first_payment_date,
             term_start,
             term_end,
             term_label,
@@ -165,6 +171,11 @@ BEGIN
             CASE 
                 WHEN contract_data->>'paid_through' IS NOT NULL 
                 THEN (contract_data->>'paid_through')::timestamptz 
+                ELSE NULL 
+            END,
+            CASE 
+                WHEN contract_data->>'first_payment_date' IS NOT NULL 
+                THEN (contract_data->>'first_payment_date')::timestamptz 
                 ELSE NULL 
             END,
             CASE 

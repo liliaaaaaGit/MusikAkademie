@@ -198,8 +198,15 @@ export const generateContractPDF = async (
 
     // NEW: Payment / Term / Cancellation (conditional)
     const metaLines: string[] = [];
-    if (contract.billing_cycle === 'monthly' && contract.paid_through) {
-      metaLines.push(`Zahlung: monatlich – bezahlt bis ${format(new Date(contract.paid_through), 'MMMM yyyy', { locale: de })}`);
+    if (contract.billing_cycle === 'monthly') {
+      let monthlyPaymentText = 'Zahlung: monatlich';
+      if (contract.first_payment_date) {
+        monthlyPaymentText += ` – erste Zahlung ${format(new Date(contract.first_payment_date), 'dd.MM.yyyy', { locale: de })}`;
+      }
+      if (contract.paid_through) {
+        monthlyPaymentText += ` – bezahlt bis ${format(new Date(contract.paid_through), 'MMMM yyyy', { locale: de })}`;
+      }
+      metaLines.push(monthlyPaymentText);
     }
     if (contract.billing_cycle === 'upfront' && contract.paid_at) {
       metaLines.push(`Zahlung: einmalig – bezahlt am ${format(new Date(contract.paid_at), 'dd.MM.yyyy', { locale: de })}`);

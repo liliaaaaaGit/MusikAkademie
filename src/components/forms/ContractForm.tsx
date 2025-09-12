@@ -78,6 +78,7 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'upfront' | ''>(contract?.billing_cycle || '');
   const [paidAt, setPaidAt] = useState<string | ''>(contract?.paid_at || '');
   const [paidThrough, setPaidThrough] = useState<string | ''>(contract?.paid_through || '');
+  const [firstPaymentDate, setFirstPaymentDate] = useState<string | ''>(contract?.first_payment_date || '');
   const [termStart, setTermStart] = useState<string | ''>(contract?.term_start || '');
   const [termEnd, setTermEnd] = useState<string | ''>(contract?.term_end || '');
   const [termLabel, setTermLabel] = useState<string>(contract?.term_label || '');
@@ -292,6 +293,7 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
       billing_cycle: billingCycle || null,
       paid_at: billingCycle === 'upfront' && paidAt ? paidAt : null,
       paid_through: billingCycle === 'monthly' && paidThrough ? paidThrough : null,
+      first_payment_date: billingCycle === 'monthly' && firstPaymentDate ? firstPaymentDate : null,
       term_start: termStart || null,
       term_end: termEnd || null,
       term_label: termLabel || null,
@@ -737,20 +739,32 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
             </div>
 
             {billingCycle === 'monthly' && (
-              <div className="flex items-center gap-4">
-                <Label className="w-32">Bezahlt bis</Label>
-                <Input type="date" value={paidThrough || ''} onChange={e => setPaidThrough(e.target.value)} className="max-w-[220px]" />
-                <Button type="button" variant="outline" onClick={() => {
-                  const t = new Date();
-                  const y = t.getFullYear();
-                  const m = t.getMonth()+1;
-                  const last = new Date(y, m, 0).getDate();
-                  const mm = String(m).padStart(2,'0');
-                  const dd = String(last).padStart(2,'0');
-                  setPaidThrough(`${y}-${mm}-${dd}`);
-                }}>
-                  Heute (Monatsende)
-                </Button>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Label className="w-32">Erste Zahlung</Label>
+                  <Input 
+                    type="date" 
+                    value={firstPaymentDate || ''} 
+                    onChange={e => setFirstPaymentDate(e.target.value)} 
+                    className="max-w-[220px]" 
+                    placeholder="Startdatum der Zahlungen"
+                  />
+                </div>
+                <div className="flex items-center gap-4">
+                  <Label className="w-32">Bezahlt bis</Label>
+                  <Input type="date" value={paidThrough || ''} onChange={e => setPaidThrough(e.target.value)} className="max-w-[220px]" />
+                  <Button type="button" variant="outline" onClick={() => {
+                    const t = new Date();
+                    const y = t.getFullYear();
+                    const m = t.getMonth()+1;
+                    const last = new Date(y, m, 0).getDate();
+                    const mm = String(m).padStart(2,'0');
+                    const dd = String(last).padStart(2,'0');
+                    setPaidThrough(`${y}-${mm}-${dd}`);
+                  }}>
+                    Heute (Monatsende)
+                  </Button>
+                </div>
               </div>
             )}
 

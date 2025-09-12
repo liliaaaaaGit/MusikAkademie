@@ -18,9 +18,13 @@ export const generateContractPDF = async (
     console.log('PDF Generation Debug:', {
       showBankIds,
       studentBankId: contract.student?.bank_id,
-      teacherBankId: contract.student?.teacher?.bank_id,
+      teacherBankId: contract.teacher?.bank_id || contract.student?.teacher?.bank_id,
       studentName: contract.student?.name,
-      teacherName: contract.student?.teacher?.name
+      teacherName: contract.teacher?.name || contract.student?.teacher?.name,
+      contractStructure: {
+        hasDirectTeacher: !!contract.teacher,
+        hasNestedTeacher: !!contract.student?.teacher
+      }
     });
     
     // Create new PDF document
@@ -137,14 +141,22 @@ export const generateContractPDF = async (
     doc.setFont('helvetica', 'bold');
     doc.text('Lehrer:', leftColumn, yPosition + 16);
     doc.setFont('helvetica', 'normal');
-    doc.text(contract.student?.teacher?.name || 'Unbekannt', leftColumn + 25, yPosition + 16);
+    const teacherName = contract.teacher?.name || contract.student?.teacher?.name || 'Unbekannt';
+    doc.text(teacherName, leftColumn + 25, yPosition + 16);
  
     // Bank-Informationen (always render; placeholders for non-admin)
     doc.setFont('helvetica', 'bold');
     doc.text('Bank-ID Lehrer:', leftColumn, yPosition + 24);
     doc.setFont('helvetica', 'normal');
-    const teacherBankIdText = (showBankIds ? (contract.student?.teacher?.bank_id || '—') : '—');
-    console.log('PDF Debug - Teacher Bank ID rendering:', { showBankIds, teacherBankId: contract.student?.teacher?.bank_id, finalText: teacherBankIdText });
+    const teacherBankId = contract.teacher?.bank_id || contract.student?.teacher?.bank_id;
+    const teacherBankIdText = (showBankIds ? (teacherBankId || '—') : '—');
+    console.log('PDF Debug - Teacher Bank ID rendering:', { 
+      showBankIds, 
+      directTeacherBankId: contract.teacher?.bank_id,
+      nestedTeacherBankId: contract.student?.teacher?.bank_id,
+      finalTeacherBankId: teacherBankId,
+      finalText: teacherBankIdText 
+    });
     doc.text(teacherBankIdText, leftColumn + 35, yPosition + 24);
  
     // Right column - Contract Information

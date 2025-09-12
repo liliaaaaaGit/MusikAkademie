@@ -155,7 +155,7 @@ BEGIN
         JOIN pg_namespace n ON n.oid = p.pronamespace 
         WHERE n.nspname = 'public' 
         AND p.proname = 'batch_update_lessons'
-        AND p.proargtypes = ARRAY['jsonb'::regtype]
+        AND p.pronargs = 1
     ) INTO func_exists;
     
     IF func_exists THEN

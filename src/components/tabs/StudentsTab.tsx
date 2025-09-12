@@ -218,11 +218,18 @@ export function StudentsTab() {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.instrument.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.teacher?.name.toLowerCase().includes(searchTerm.toLowerCase());
+                         student.contracts?.some(contract => 
+                           contract.teacher?.name.toLowerCase().includes(searchTerm.toLowerCase())
+                         );
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     const matchesInstrument = instrumentFilter === 'all' || student.instrument === instrumentFilter;
-    const matchesTeacher = teacherFilter === 'all' || student.teacher_id === teacherFilter;
+    
+    // FIXED: Check teacher filter against the nested teacher ID from contracts array
+    const matchesTeacher = teacherFilter === 'all' || 
+                          (student.contracts && student.contracts.some(contract => 
+                            contract.teacher?.id === teacherFilter
+                          ));
     
     return matchesSearch && matchesStatus && matchesInstrument && matchesTeacher;
   });

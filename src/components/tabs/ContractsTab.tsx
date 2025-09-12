@@ -924,17 +924,14 @@ export function ContractsTab() {
 
                       {/* Payment + Cancellation badges row (moved here) */}
                       {(contract.billing_cycle === 'upfront' && contract.paid_at) ||
-                       (contract.billing_cycle === 'monthly' && contract.paid_through) ||
+                       (contract.billing_cycle === 'monthly' && contract.first_payment_date) ||
                        contract.cancelled_at ? (
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                           {contract.billing_cycle === 'upfront' && contract.paid_at && (
                             <Badge variant="secondary">Bezahlt am {fmtDate(contract.paid_at)}</Badge>
                           )}
-                          {contract.billing_cycle === 'monthly' && contract.paid_through && (
-                            <Badge variant="secondary">Bezahlt bis {formatMonthYearShort(contract.paid_through)}</Badge>
-                          )}
-                          {contract.billing_cycle === 'monthly' && contract.paid_through && new Date(contract.paid_through) < new Date() && (
-                            <Badge variant="outline">Überfällig</Badge>
+                          {contract.billing_cycle === 'monthly' && contract.first_payment_date && (
+                            <Badge variant="secondary">Erste Zahlung {fmtDate(contract.first_payment_date)}</Badge>
                           )}
                           {contract.cancelled_at && (
                             <Badge variant="outline" className="text-red-600 border-red-300">Gekündigt zum {fmtDate(contract.cancelled_at)}</Badge>

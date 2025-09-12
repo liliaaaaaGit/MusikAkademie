@@ -203,9 +203,6 @@ export const generateContractPDF = async (
       if (contract.first_payment_date) {
         monthlyPaymentText += ` – erste Zahlung ${format(new Date(contract.first_payment_date), 'dd.MM.yyyy', { locale: de })}`;
       }
-      if (contract.paid_through) {
-        monthlyPaymentText += ` – bezahlt bis ${format(new Date(contract.paid_through), 'MMMM yyyy', { locale: de })}`;
-      }
       metaLines.push(monthlyPaymentText);
     }
     if (contract.billing_cycle === 'upfront' && contract.paid_at) {

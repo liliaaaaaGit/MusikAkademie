@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { fmtDate, fmtMonthYear, fmtRange } from '@/lib/utils';
+import { fmtDate, fmtRange } from '@/lib/utils';
 import { updateContractNotes } from '@/lib/actions/contractNotes';
 
 interface LessonTrackerModalProps {
@@ -555,11 +555,8 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
               {contract.billing_cycle === 'upfront' && contract.paid_at && (
                 <Badge variant="secondary">Bezahlt am {fmtDate(contract.paid_at)}</Badge>
               )}
-              {contract.billing_cycle === 'monthly' && contract.paid_through && (
-                <Badge variant="secondary">Bezahlt bis {fmtMonthYear(contract.paid_through)}</Badge>
-              )}
-              {contract.billing_cycle === 'monthly' && contract.paid_through && new Date(contract.paid_through) < new Date() && (
-                <Badge variant="outline">Überfällig</Badge>
+              {contract.billing_cycle === 'monthly' && contract.first_payment_date && (
+                <Badge variant="secondary">Erste Zahlung {fmtDate(contract.first_payment_date)}</Badge>
               )}
               {contract.cancelled_at && (
                 <Badge variant="destructive" className="bg-transparent text-red-600 border-red-300">Gekündigt zum {fmtDate(contract.cancelled_at)}</Badge>

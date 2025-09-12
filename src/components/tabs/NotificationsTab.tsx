@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, Notification, Contract, Student, Teacher, markNotificationAsRead, deleteNotification, generateContractPDF, PDFContractData } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { toast } from 'sonner';
 
 export function NotificationsTab() {
   const { isAdmin, profile } = useAuth();
+  const isMobile = useIsMobile();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -366,6 +368,7 @@ export function NotificationsTab() {
     }
 
     setSelectedStudentForNewContract(notification.contract.student.id);
+    setSelectedContract(notification.contract);
     setShowNewContractForm(true);
 
     // Mark as read when creating new contract
@@ -606,54 +609,110 @@ export function NotificationsTab() {
 
                     <Separator />
 
-                    <div className="flex flex-wrap gap-2">
-                      {notification.contract && (
-                        <>
+                    {/* Mobile layout for teachers */}
+                    {isMobile && profile?.role === 'teacher' ? (
+                      <div className="space-y-3">
+                        {/* First row: Vertrag anzeigen - PDF herunterladen */}
+                        <div className="flex gap-2">
+                          {notification.contract && (
+                            <>
+                              <Button
+                                onClick={() => handleViewContract(notification)}
+                                size="sm"
+                                className="flex-1 bg-brand-primary hover:bg-brand-primary/90"
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Vertrag anzeigen
+                              </Button>
+                              <Button
+                                onClick={() => handleDownloadPDF(notification)}
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                PDF herunterladen
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        
+                        {/* Second row: Als gelesen markieren - löschen */}
+                        <div className="flex gap-2">
                           <Button
-                            onClick={() => handleViewContract(notification)}
-                            size="sm"
-                            className="bg-brand-primary hover:bg-brand-primary/90"
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Vertrag anzeigen
-                          </Button>
-                          <Button
-                            onClick={() => handleDownloadPDF(notification)}
+                            onClick={() => handleMarkAsRead(notification)}
                             variant="outline"
                             size="sm"
+                            className="flex-1"
                           >
-                            <Download className="h-4 w-4 mr-2" />
-                            PDF herunterladen
+                            <Check className="h-4 w-4 mr-2" />
+                            Als gelesen markieren
                           </Button>
                           <Button
-                            onClick={() => handleCreateNewContract(notification)}
+                            onClick={() => handleDeleteNotification(notification)}
                             variant="outline"
                             size="sm"
+                            className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
                           >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Neuer Vertrag
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Löschen
                           </Button>
-                        </>
-                      )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Desktop layout for admins and teachers */
+                      <div className="flex flex-wrap gap-2">
+                        {notification.contract && (
+                          <>
+                            <Button
+                              onClick={() => handleViewContract(notification)}
+                              size="sm"
+                              className="bg-brand-primary hover:bg-brand-primary/90"
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Vertrag anzeigen
+                            </Button>
+                            <Button
+                              onClick={() => handleDownloadPDF(notification)}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              PDF herunterladen
+                            </Button>
+                            {/* Only show "Neuer Vertrag" button for admins */}
+                            {isAdmin && (
+                              <Button
+                                onClick={() => handleCreateNewContract(notification)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Neuer Vertrag
+                              </Button>
+                            )}
+                          </>
+                        )}
 
-                      <Button
-                        onClick={() => handleMarkAsRead(notification)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Als gelesen markieren
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteNotification(notification)}
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Löschen
-                      </Button>
-                    </div>
+                        <Button
+                          onClick={() => handleMarkAsRead(notification)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Als gelesen markieren
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteNotification(notification)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Löschen
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -854,15 +913,18 @@ export function NotificationsTab() {
             students={students}
             teachers={teachers}
             initialStudentId={selectedStudentForNewContract}
+            initialContract={selectedContract || undefined}
             onSuccess={() => {
               setShowNewContractForm(false);
               setSelectedStudentForNewContract('');
+              setSelectedContract(null);
               fetchNotifications(); // Refresh to see if notification should be updated
               toast.success('Neuer Vertrag erfolgreich erstellt');
             }}
             onCancel={() => {
               setShowNewContractForm(false);
               setSelectedStudentForNewContract('');
+              setSelectedContract(null);
             }}
           />
         </DialogContent>

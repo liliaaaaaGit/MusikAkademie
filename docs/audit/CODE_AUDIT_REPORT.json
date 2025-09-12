@@ -1,0 +1,511 @@
+{
+  "timestamp": "2025-09-12T22:54:08.024Z",
+  "serviceRoleUsage": [],
+  "forbiddenReferences": [],
+  "ambiguousContractId": [
+    {
+      "file": "src/components/forms/ContractForm.tsx",
+      "line": 340,
+      "content": "contract_id_param: contract?.id || null",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/ContractForm.tsx",
+      "line": 346,
+      "content": "if (!result?.success || !result.contract_id) {",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/ContractForm.tsx",
+      "line": 364,
+      "content": ".eq('id', result.contract_id)",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/StudentForm.tsx",
+      "line": 346,
+      "content": "contract_id_param: student?.contract?.id || null",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/StudentForm.tsx",
+      "line": 359,
+      "content": "return { id: saveResult.contract_id };",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/StudentForm.tsx",
+      "line": 502,
+      "content": "// NEW: Update student with contract_id if contract was created",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/forms/StudentForm.tsx",
+      "line": 506,
+      "content": ".update({ contract_id: contractId })",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/DeleteContractConfirmationModal.tsx",
+      "line": 42,
+      "content": ".eq('contract_id', contract.id)",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 64,
+      "content": ".eq('contract_id', contract.id)",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 137,
+      "content": "// 2. Prepare lesson updates with proper contract_id preservation",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 153,
+      "content": "contract_id: originalLesson.contract_id, // FIXED: Always include contract_id",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 169,
+      "content": "// 3. Use safe batch update function to prevent contract_id issues",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 199,
+      "content": "contract_id_param: contract.id",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/modals/LessonTrackerModal.tsx",
+      "line": 267,
+      "content": "contract_id_param: contract.id,",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/components/tabs/ContractsTab.tsx",
+      "line": 461,
+      "content": ".eq('contract_id', baseContract.id)",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/lib/actions/contractNotes.ts",
+      "line": 5,
+      "content": "_contract_id: contractId,",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/lib/supabase.ts",
+      "line": 48,
+      "content": "contract_id?: string; // Deprecated, use contracts array",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/lib/supabase.ts",
+      "line": 124,
+      "content": "contract_id: string;",
+      "issue": "Unqualified contract_id reference"
+    },
+    {
+      "file": "src/lib/supabase.ts",
+      "line": 165,
+      "content": "contract_id?: string;",
+      "issue": "Unqualified contract_id reference"
+    }
+  ],
+  "duplicateRPCs": [
+    {
+      "function": "public",
+      "files": [
+        "20250106_two_teachers_per_student.sql",
+        "20250106_two_teachers_per_student.sql",
+        "20250106_two_teachers_per_student.sql",
+        "20250106_two_teachers_per_student.sql",
+        "20250107_add_private_notes.sql",
+        "20250107_add_private_notes_fix.sql",
+        "20250107_add_private_notes_fix.sql",
+        "20250108_direct_fix_ambiguous_contract_id.sql",
+        "20250108_fix_all_notification_triggers.sql",
+        "20250108_fix_ambiguous_contract_id.sql",
+        "20250108_fix_ambiguous_contract_id_simple.sql",
+        "20250108_fix_contract_completion_trigger.sql",
+        "20250108_fix_discount_ids_scalar_error.sql",
+        "20250108_fix_teacher_notes_permissions.sql",
+        "20250108_replace_get_teacher_contract_counts.sql",
+        "20250109_fix_contract_teacher_id.sql",
+        "20250704_fix_discount_ids_parsing.sql",
+        "20250704_rls_contract_operation_log.sql",
+        "20250911_add_cutoff_price_version_utility.sql",
+        "20250911_cohort_pricing_v1.sql",
+        "20250911_cohort_pricing_v1.sql",
+        "20250911_cohort_pricing_v1.sql",
+        "20250911_fix_discount_ids_array_handling.sql",
+        "20250911_fix_teacher_counts_and_cohort.sql",
+        "20250911_fix_teacher_counts_and_cohort.sql",
+        "20250911_fix_variants_rpc_for_new_students.sql",
+        "20250911_price_versioning.sql",
+        "20250911_price_versioning.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "batch_update_lessons",
+      "files": [
+        "20250108_comprehensive_teacher_id_cleanup.sql",
+        "20250108_definitive_batch_update_lessons_fix.sql",
+        "20250108_fix_ambiguous_contract_id_in_batch_update.sql",
+        "20250108_fix_lesson_tracking_teacher_reference.sql",
+        "20250703200000_contract_progress_tracking_fix.sql",
+        "20250705_complete_batch_update_fix.sql",
+        "20250705_comprehensive_lesson_tracking_fix.sql",
+        "20250705_fix_ambiguous_contract_id.sql",
+        "20250705_fix_array_length_error.sql",
+        "20250705_fix_notification_trigger.sql",
+        "20250705_fix_notification_trigger_v2.sql",
+        "20250705_restore_contract_completion_notifications.sql",
+        "20250912_final_batch_update_lessons_fix.sql",
+        "20250912_fix_batch_update_lessons.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "update_contract_attendance",
+      "files": [
+        "20250108_comprehensive_teacher_id_cleanup.sql",
+        "20250108_fix_syntax_error.sql",
+        "20250627132358_smooth_sunset.sql",
+        "20250627134012_patient_morning.sql",
+        "20250627134659_rustic_bonus.sql",
+        "20250630120800_delicate_glitter.sql",
+        "20250630135435_tight_frog.sql",
+        "20250702152841_crimson_bar.sql",
+        "20250702154345_fierce_lagoon.sql",
+        "20250703110847_patient_heart.sql",
+        "20250703180000_comprehensive_contract_fix.sql",
+        "20250703190000_contract_editing_sync_fix.sql",
+        "20250704_contract_fulfillment_fix.sql",
+        "20250912_fixed_minimal_fix_students_teacher_id_references.sql",
+        "20250912_minimal_fix_students_teacher_id_references.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "to",
+      "files": [
+        "20250627083802_restless_ocean.sql",
+        "20250627083802_restless_ocean.sql",
+        "20250627110234_silver_garden.sql",
+        "20250627124415_bitter_voice.sql",
+        "20250627124415_bitter_voice.sql",
+        "20250627124415_bitter_voice.sql",
+        "20250630131431_wild_voice.sql",
+        "20250630131431_wild_voice.sql",
+        "20250630131431_wild_voice.sql",
+        "20250703190000_contract_editing_sync_fix.sql",
+        "20250703200000_contract_progress_tracking_fix.sql",
+        "20250705_create_profile_after_signup.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "get_user_role",
+      "files": [
+        "20250627102040_misty_coast.sql",
+        "20250627124415_bitter_voice.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "generate_bank_id",
+      "files": [
+        "20250627124415_bitter_voice.sql",
+        "20250630131431_wild_voice.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "auto_generate_student_bank_id",
+      "files": [
+        "20250627124415_bitter_voice.sql",
+        "20250630131431_wild_voice.sql",
+        "20250630173655_long_butterfly.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "auto_generate_teacher_bank_id",
+      "files": [
+        "20250627124415_bitter_voice.sql",
+        "20250630131431_wild_voice.sql",
+        "20250630173655_long_butterfly.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "auto_generate_lessons",
+      "files": [
+        "20250627132358_smooth_sunset.sql",
+        "20250630120800_delicate_glitter.sql",
+        "20250703190000_contract_editing_sync_fix.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "accept_trial",
+      "files": [
+        "20250629130810_jade_flame.sql",
+        "20250702132142_mute_grass.sql",
+        "20250702133149_late_mountain.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "calculate_contract_price",
+      "files": [
+        "20250630120800_delicate_glitter.sql",
+        "20250630163451_icy_oasis.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_contract_fulfilled",
+      "files": [
+        "20250630143645_old_torch.sql",
+        "20250630144628_divine_garden.sql",
+        "20250630145151_black_manor.sql",
+        "20250630145442_restless_feather.sql",
+        "20250701135851_silent_bridge.sql",
+        "20250701141716_small_glitter.sql",
+        "20250701151215_solitary_marsh.sql",
+        "20250701152542_stark_band.sql",
+        "20250702143817_flat_mud.sql",
+        "20250702152047_silver_tower.sql",
+        "20250703170000_fix_contract_completion_notification.sql",
+        "20250703180000_comprehensive_contract_fix.sql",
+        "20250704_notification_nonblocking_fix.sql",
+        "20250705_comprehensive_lesson_tracking_fix.sql",
+        "20250705_fix_notification_trigger.sql",
+        "20250705_fix_notification_trigger_v2.sql",
+        "20250705_restore_contract_completion_notifications.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "mark_notification_read",
+      "files": [
+        "20250630143645_old_torch.sql",
+        "20250630144628_divine_garden.sql",
+        "20250630145151_black_manor.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "delete_notification",
+      "files": [
+        "20250630143645_old_torch.sql",
+        "20250630144628_divine_garden.sql",
+        "20250630145151_black_manor.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "update_notification_timestamp",
+      "files": [
+        "20250630143645_old_torch.sql",
+        "20250630144628_divine_garden.sql",
+        "20250630145151_black_manor.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "test_notification_system",
+      "files": [
+        "20250630145442_restless_feather.sql",
+        "20250701135851_silent_bridge.sql",
+        "20250701145340_flat_boat.sql",
+        "20250701151215_solitary_marsh.sql",
+        "20250701152542_stark_band.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "check_notification_system_status",
+      "files": [
+        "20250701135851_silent_bridge.sql",
+        "20250701151215_solitary_marsh.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "force_contract_notification",
+      "files": [
+        "20250701151215_solitary_marsh.sql",
+        "20250705_fix_notification_trigger.sql",
+        "20250705_fix_notification_trigger_v2.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "decline_trial",
+      "files": [
+        "20250702132142_mute_grass.sql",
+        "20250702133149_late_mountain.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_assigned_trial",
+      "files": [
+        "20250702132142_mute_grass.sql",
+        "20250702133149_late_mountain.sql",
+        "20250702141406_ancient_thunder.sql",
+        "20250702142356_rapid_dust.sql",
+        "20250702142932_ancient_truth.sql",
+        "20250702143405_flat_glitter.sql",
+        "20250702145602_bronze_wood.sql",
+        "20250702150304_warm_scene.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_declined_trial",
+      "files": [
+        "20250702132142_mute_grass.sql",
+        "20250702133149_late_mountain.sql",
+        "20250702141406_ancient_thunder.sql",
+        "20250702142356_rapid_dust.sql",
+        "20250702142932_ancient_truth.sql",
+        "20250702143405_flat_glitter.sql",
+        "20250702143817_flat_mud.sql",
+        "20250702145602_bronze_wood.sql",
+        "20250702150304_warm_scene.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_accepted_trial",
+      "files": [
+        "20250702132142_mute_grass.sql",
+        "20250702133149_late_mountain.sql",
+        "20250702141406_ancient_thunder.sql",
+        "20250702142356_rapid_dust.sql",
+        "20250702142932_ancient_truth.sql",
+        "20250702143405_flat_glitter.sql",
+        "20250702143817_flat_mud.sql",
+        "20250702145602_bronze_wood.sql",
+        "20250702150304_warm_scene.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_new_open_trial",
+      "files": [
+        "20250702133149_late_mountain.sql",
+        "20250702141406_ancient_thunder.sql",
+        "20250702142356_rapid_dust.sql",
+        "20250702142932_ancient_truth.sql",
+        "20250702143405_flat_glitter.sql",
+        "20250702145602_bronze_wood.sql",
+        "20250702150304_warm_scene.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "fix_contract_attendance",
+      "files": [
+        "20250702152841_crimson_bar.sql",
+        "20250702154345_fierce_lagoon.sql",
+        "20250703110847_patient_heart.sql",
+        "20250703180000_comprehensive_contract_fix.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "verify_contract_notification_system",
+      "files": [
+        "20250703170000_fix_contract_completion_notification.sql",
+        "20250703180000_comprehensive_contract_fix.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "handle_contract_update",
+      "files": [
+        "20250703190000_contract_editing_sync_fix.sql",
+        "20250703200000_contract_progress_tracking_fix.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "sync_contract_data",
+      "files": [
+        "20250703190000_contract_editing_sync_fix.sql",
+        "20250703200000_contract_progress_tracking_fix.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "log_contract_error",
+      "files": [
+        "20250703200000_contract_progress_tracking_fix.sql",
+        "20250703210000_contract_save_error_fix.sql",
+        "20250703210000_fix_contract_save_errors.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "validate_contract_data",
+      "files": [
+        "20250703210000_contract_save_error_fix.sql",
+        "20250703210000_fix_contract_save_errors.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "safe_save_contract",
+      "files": [
+        "20250703210000_contract_save_error_fix.sql",
+        "20250703210000_fix_contract_save_errors.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "check_contract_permissions",
+      "files": [
+        "20250703210000_contract_save_error_fix.sql",
+        "20250703210000_fix_contract_save_errors.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "diagnose_contract_save_issue",
+      "files": [
+        "20250703210000_contract_save_error_fix.sql",
+        "20250703210000_fix_contract_save_errors.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "create_profile_after_signup",
+      "files": [
+        "20250705_comprehensive_auth_fix.sql",
+        "20250705_create_profile_after_signup.sql",
+        "20250705_fix_profile_creation.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    },
+    {
+      "function": "notify_contract_completion",
+      "files": [
+        "20250912_fixed_minimal_fix_students_teacher_id_references.sql",
+        "20250912_minimal_fix_students_teacher_id_references.sql"
+      ],
+      "issue": "Function defined in multiple migration files"
+    }
+  ]
+}

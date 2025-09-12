@@ -2,14 +2,41 @@ import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, Users, GraduationCap, FileText, Clock, Bell } from 'lucide-react';
+import { LogOut, Users, GraduationCap, FileText, Clock, Bell, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export function Sidebar() {
   const { profile, signOut } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
+    setIsSigningOut(true);
+    try {
+      console.log('Attempting to sign out...');
+      const { error } = await signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        // Check if it's a session missing error - this is actually okay
+        if (error instanceof Error && error.message?.includes('Auth session missing')) {
+          console.log('Session was already expired, clearing local state');
+          toast.success('Erfolgreich abgemeldet');
+        } else {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          toast.error('Fehler beim Abmelden', { description: errorMessage });
+        }
+      } else {
+        console.log('Sign out successful');
+        toast.success('Erfolgreich abgemeldet');
+      }
+    } catch (error) {
+      console.error('Sign out exception:', error);
+      // Even if there's an exception, the user should be logged out
+      toast.success('Erfolgreich abgemeldet');
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -110,10 +137,15 @@ export function Sidebar() {
           variant="outline"
           size="default"
           onClick={handleSignOut}
+          disabled={isSigningOut}
           className="w-full justify-start bg-brand-gray hover:bg-brand-gray/80 text-gray-700 border-brand-gray h-11 mb-4"
         >
-          <LogOut className="h-5 w-5 mr-3" />
-          Abmelden
+          {isSigningOut ? (
+            <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+          ) : (
+            <LogOut className="h-5 w-5 mr-3" />
+          )}
+          {isSigningOut ? 'Wird abgemeldet...' : 'Abmelden'}
         </Button>
         
         {/* Privacy Policy Link */}

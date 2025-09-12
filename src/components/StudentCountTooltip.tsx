@@ -21,19 +21,39 @@ export function StudentCountTooltip({ teacherId, studentCount }: StudentCountToo
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, name, instrument, status')
-        .eq('teacher_id', teacherId)
-        .eq('status', 'active')
-        .order('name');
+      // First get the student IDs from any contracts (regardless of contract status)
+      const { data: contractData, error: contractError } = await supabase
+        .from('contracts')
+        .select('student_id')
+        .eq('teacher_id', teacherId);
 
-      if (error) {
-        toast.error('Failed to fetch students', { description: error.message });
+      if (contractError) {
+        toast.error('Failed to fetch student contracts', { description: contractError.message });
         return;
       }
 
-      setStudents(data as Student[] || []);
+      if (!contractData || contractData.length === 0) {
+        setStudents([]);
+        return;
+      }
+
+      // Extract unique student IDs
+      const studentIds = [...new Set(contractData.map(c => c.student_id))];
+
+      // Now fetch the students
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('id, name, instrument, status')
+        .in('id', studentIds)
+        .eq('status', 'active')
+        .order('name');
+
+      if (studentError) {
+        toast.error('Failed to fetch students', { description: studentError.message });
+        return;
+      }
+
+      setStudents(studentData as Student[] || []);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to fetch students');
@@ -53,7 +73,7 @@ export function StudentCountTooltip({ teacherId, studentCount }: StudentCountToo
     return (
       <div className="flex items-center space-x-2">
         <Users className="h-4 w-4 text-gray-400" />
-        <Badge variant="outline">0</Badge>
+        <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">0</Badge>
       </div>
     );
   }
@@ -61,9 +81,9 @@ export function StudentCountTooltip({ teacherId, studentCount }: StudentCountToo
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button className="flex items-center space-x-2 hover:bg-gray-50 rounded-md p-1 transition-colors">
+        <button className="flex items-center space-x-2 hover:bg-gray-50 rounded-md p-1 transition-colors bg-transparent border-none">
           <Users className="h-4 w-4 text-gray-400" />
-          <Badge variant="outline" className="cursor-pointer hover:bg-brand-primary/10 hover:border-brand-primary">
+          <Badge variant="outline" className="cursor-pointer hover:bg-brand-primary/10 hover:border-brand-primary bg-gray-100 text-gray-700 border-gray-300">
             {studentCount}
           </Badge>
         </button>

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, MoreHorizontal, Edit, Calendar, FileText, Users, Trash2, Clock, ArrowLeft, Download, Info } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Calendar, FileText, Users, Trash2, Clock, ArrowLeft, Download } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LessonTrackerModal } from '@/components/modals/LessonTrackerModal';
 import { TeacherContractsModal } from '@/components/modals/TeacherContractsModal';
@@ -630,26 +630,6 @@ export function ContractsTab() {
         )}
       </div>
 
-      {/* Show info message for teachers */}
-      {profile?.role === 'teacher' && (
-        <Card className="bg-gray-50 border-gray-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <Info className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-800">
-                  Lehreransicht - Eingeschränkte Berechtigungen
-                </h3>
-                <p className="text-sm text-gray-700 mt-1">
-                  Sie können nur Ihre eigenen Verträge anzeigen und Stunden verfolgen. Das Hinzufügen, Bearbeiten oder Löschen von Verträgen ist nur für Administratoren möglich.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filters */}
       <Card>

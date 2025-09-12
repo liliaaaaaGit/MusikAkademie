@@ -7,6 +7,7 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     // Check if Supabase is properly configured
@@ -18,6 +19,13 @@ export function useAuth() {
 
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      // Don't process initial session if we're signing out
+      if (isSigningOut) {
+        console.log('Ignoring initial session during sign out');
+        setLoading(false);
+        return;
+      }
+      
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -29,6 +37,12 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        // Don't update state if we're in the middle of signing out
+        if (isSigningOut) {
+          console.log('Ignoring auth state change during sign out');
+          return;
+        }
+        
         setUser(session?.user ?? null);
         if (session?.user) {
           fetchProfile(session.user.id);
@@ -40,10 +54,16 @@ export function useAuth() {
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isSigningOut]);
 
   const fetchProfile = async (userId: string) => {
     try {
+      // Don't fetch profile if we're signing out
+      if (isSigningOut) {
+        console.log('Ignoring profile fetch during sign out');
+        return;
+      }
+      
       console.log('Fetching profile for user:', userId);
       const { data, error } = await supabase
         .from('profiles')
@@ -180,8 +200,64 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      console.log('Starting sign out process...');
+      
+      // Set signing out flag to prevent auth state changes from overriding our logout
+      setIsSigningOut(true);
+      
+      // Clear Supabase session storage directly
+      try {
+        // Clear all localStorage items that start with 'sb-'
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+        sessionStorage.clear();
+      } catch (storageError) {
+        console.log('Storage clear error:', storageError);
+      }
+      
+      // Always clear local state first
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+      
+      // Try to sign out from Supabase (this might fail if session is already expired)
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.log('Supabase signOut error (expected if session expired):', error.message);
+        } else {
+          console.log('Supabase signOut successful');
+        }
+      } catch (supabaseError) {
+        console.log('Supabase signOut exception (expected if session expired):', supabaseError);
+      }
+      
+      // Force clear any remaining session data
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (localError) {
+        console.log('Local signOut error (expected):', localError);
+      }
+      
+      // Force redirect to login page immediately
+      window.location.href = '/login';
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      // Ensure local state is cleared even if everything fails
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+      setIsSigningOut(false);
+      // Force redirect even on error
+      window.location.href = '/login';
+      return { error };
+    }
   };
 
   return {

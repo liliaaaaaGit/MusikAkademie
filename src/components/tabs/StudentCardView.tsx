@@ -85,10 +85,13 @@ export const StudentCardView: React.FC<StudentCardViewProps> = ({ students, noOu
                 <span className="font-medium">Telefon:</span>
                 <span className="truncate">{student.phone || '-'}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Vertrag:</span>
-                <span className="truncate">{student.contract ? student.contract.contract_variant?.name : '-'}</span>
-              </div>
+              {/* Only show contract information for admins */}
+              {profile?.role === 'admin' && (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Vertrag:</span>
+                  <span className="truncate">{student.contracts && student.contracts.length > 0 ? student.contracts.length.toString() : '-'}</span>
+                </div>
+              )}
             </div>
             {/* Only show the pink info text if NOT teacher on mobile */}
             {!(isTeacherMobile) && (

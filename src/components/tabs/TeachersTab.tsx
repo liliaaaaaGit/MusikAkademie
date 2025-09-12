@@ -314,7 +314,7 @@ export function TeachersTab() {
                           <DropdownMenuTrigger asChild>
                             <Button 
                               variant="ghost" 
-                              className="bg-transparent border-none shadow-none p-0 h-auto w-auto text-black hover:bg-transparent hover:text-black"
+                              className="bg-gray-100 border border-gray-300 shadow-none p-2 h-auto w-auto text-gray-700 hover:bg-gray-200 hover:text-gray-800"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>

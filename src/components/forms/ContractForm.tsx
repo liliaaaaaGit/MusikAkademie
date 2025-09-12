@@ -20,6 +20,7 @@ interface ContractFormProps {
   onSuccess: () => void;
   onCancel: () => void;
   initialStudentId?: string;
+  initialContract?: Contract;
 }
 
 // Deep copy utility function to create immutable snapshots
@@ -49,7 +50,7 @@ const deepCopy = <T,>(obj: T): T => {
   return obj;
 };
 
-export function ContractForm({ contract, students, teachers, onSuccess, onCancel, initialStudentId }: ContractFormProps) {
+export function ContractForm({ contract, students, teachers, onSuccess, onCancel, initialStudentId, initialContract }: ContractFormProps) {
   const { profile, isAdmin } = useAuth();
   
   // Enhanced teacher profile resolution
@@ -75,21 +76,21 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
   const [customDiscountPercent, setCustomDiscountPercent] = useState<number>(0);
 
   // NEW: Payment & term & cancellation state
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'upfront' | ''>(contract?.billing_cycle || '');
-  const [paidAt, setPaidAt] = useState<string | ''>(contract?.paid_at || '');
-  const [firstPaymentDate, setFirstPaymentDate] = useState<string | ''>(contract?.first_payment_date || '');
-  const [termStart, setTermStart] = useState<string | ''>(contract?.term_start || '');
-  const [termEnd, setTermEnd] = useState<string | ''>(contract?.term_end || '');
-  const [termLabel, setTermLabel] = useState<string>(contract?.term_label || '');
-  const [isCancelledToggle, setIsCancelledToggle] = useState<boolean>(!!contract?.cancelled_at);
-  const [cancelledAt, setCancelledAt] = useState<string | ''>(contract?.cancelled_at || '');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'upfront' | ''>(contract?.billing_cycle || initialContract?.billing_cycle || '');
+  const [paidAt, setPaidAt] = useState<string | ''>(contract?.paid_at || initialContract?.paid_at || '');
+  const [firstPaymentDate, setFirstPaymentDate] = useState<string | ''>(contract?.first_payment_date || initialContract?.first_payment_date || '');
+  const [termStart, setTermStart] = useState<string | ''>(contract?.term_start || initialContract?.term_start || '');
+  const [termEnd, setTermEnd] = useState<string | ''>(contract?.term_end || initialContract?.term_end || '');
+  const [termLabel, setTermLabel] = useState<string>(contract?.term_label || initialContract?.term_label || '');
+  const [isCancelledToggle, setIsCancelledToggle] = useState<boolean>(!!contract?.cancelled_at || !!initialContract?.cancelled_at);
+  const [cancelledAt, setCancelledAt] = useState<string | ''>(contract?.cancelled_at || initialContract?.cancelled_at || '');
 
   const [formData, setFormData] = useState({
-    student_id: contract?.student_id || initialStudentId || '',
-    teacher_id: contract?.teacher_id || '',
-    selectedCategoryId: '',
-    selectedVariantId: contract?.contract_variant_id || '',
-    selectedDiscountIds: contract?.discount_ids || []
+    student_id: contract?.student_id || initialContract?.student_id || initialStudentId || '',
+    teacher_id: contract?.teacher_id || initialContract?.teacher_id || '',
+    selectedCategoryId: initialContract?.contract_variant?.contract_category_id || '',
+    selectedVariantId: contract?.contract_variant_id || initialContract?.contract_variant_id || '',
+    selectedDiscountIds: contract?.discount_ids || initialContract?.discount_ids || []
   });
   const [loading, setLoading] = useState(false);
 
@@ -99,8 +100,10 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
       // Admins can see all students
       return students;
     } else if (profile?.role === 'teacher' && currentTeacher) {
-      // Teachers can only see their own students (read-only)
-      return students.filter(s => s.teacher_id === currentTeacher.id);
+      // Teachers can only see students they have contracts with
+      return students.filter(s => 
+        s.contracts?.some(contract => contract.teacher_id === currentTeacher.id)
+      );
     }
     return [];
   }, [isAdmin, profile, currentTeacher, students]);
@@ -144,6 +147,21 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
     }
   }, [contract, contractVariants]);
 
+  // Set initial category when prefilling from completed contract
+  useEffect(() => {
+    if (initialContract?.contract_variant_id && contractVariants.length > 0) {
+      const variant = contractVariants.find(v => v.id === initialContract.contract_variant_id);
+      if (variant) {
+        setFormData(prev => ({
+          ...prev,
+          selectedCategoryId: variant.contract_category_id,
+          selectedVariantId: variant.id,
+          selectedDiscountIds: initialContract.discount_ids || []
+        }));
+      }
+    }
+  }, [initialContract, contractVariants]);
+
   // Initialize custom discount if contract has one
   useEffect(() => {
     if (contract?.custom_discount_percent) {
@@ -159,6 +177,22 @@ export function ContractForm({ contract, students, teachers, onSuccess, onCancel
       }
     }
   }, [contract]);
+
+  // Initialize custom discount if initialContract has one
+  useEffect(() => {
+    if (initialContract?.custom_discount_percent) {
+      setUseCustomDiscount(true);
+      setCustomDiscountPercent(initialContract.custom_discount_percent);
+      
+      // Add custom discount ID to selected discounts if not already there
+      if (!formData.selectedDiscountIds.includes('custom-discount')) {
+        setFormData(prev => ({
+          ...prev,
+          selectedDiscountIds: [...prev.selectedDiscountIds, 'custom-discount']
+        }));
+      }
+    }
+  }, [initialContract]);
 
   // Refetch cohort-aware variants whenever the selected student changes
   useEffect(() => {

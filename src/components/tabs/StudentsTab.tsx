@@ -53,17 +53,30 @@ export function StudentsTab() {
       let query = supabase
         .from('students')
         .select(`
-          id, name, instrument, email, phone, status, bank_id, created_at,
+          *,
           contracts:contracts!fk_contracts_student_id(
             id,
-            teacher:teachers!contracts_teacher_id_fkey(id, name)
+            contract_variant_id,
+            status,
+            attendance_count,
+            discount_ids,
+            custom_discount_percent,
+            first_payment_date,
+            teacher:teachers!contracts_teacher_id_fkey(id, name, instrument),
+            contract_variant:contract_variants(
+              id,
+              name,
+              total_lessons,
+              contract_category_id,
+              contract_category:contract_categories(id, name, display_name)
+            )
           )
         `)
         .order('name', { ascending: true });
 
       // Filter by teacher for non-admin users
       if (profile?.role === 'teacher' && currentTeacherId) {
-        query = query.eq('contracts.teacher_id', currentTeacherId);
+        query = query.eq('teacher_id', currentTeacherId);
       }
 
       const { data, error } = await query;

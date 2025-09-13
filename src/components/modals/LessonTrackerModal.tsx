@@ -385,20 +385,21 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
   if (isMobile && isAdminOrTeacher) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-screen h-[100svh] max-w-none p-0 rounded-none overflow-hidden md:rounded-lg md:max-w-6xl md:h-auto">
-          {/* Sticky header */}
-          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="text-base font-semibold truncate">Stundenverfolgung – {contract.student?.name || '-'}</div>
-              <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
-              </Badge>
+        <DialogContent className="w-screen h-[100svh] max-w-none p-0 rounded-none overflow-hidden md:rounded-lg md:max-w-6xl md:h-auto md:w-full">
+          <div className="w-full h-full overflow-hidden">
+            {/* Sticky header */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b w-full">
+              <div className="px-4 py-3 flex items-center justify-between w-full">
+                <div className="text-base font-semibold truncate">Stundenverfolgung – {contract.student?.name || '-'}</div>
+                <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
+                  {contract.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}
+                </Badge>
+              </div>
             </div>
-          </div>
 
-          {/* Scrollable body */}
-          <div className="flex flex-col h-[calc(100svh-0px)] md:h-auto">
-            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24">
+            {/* Scrollable body */}
+            <div className="flex flex-col h-[calc(100svh-60px)] w-full">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden w-full px-4 pt-4 pb-24">
               {/* Contract Overview Card (compact) */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -498,25 +499,26 @@ export function LessonTrackerModal({ contract, open, onClose, onUpdate }: Lesson
                 );
               }).filter(Boolean)}
             </Accordion>
-            </div>
+              </div>
 
-            {/* Sticky footer */}
-            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t px-4 py-3 pb-[env(safe-area-inset-bottom)]">
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={onClose}
-                  className="flex-1"
-                >
-                  Abbrechen
-                </Button>
-                <Button 
-                  onClick={handleSave} 
-                  disabled={saving || loading}
-                  className="flex-1 bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary"
-                >
-                  {saving ? 'Speichern...' : 'Fortschritt speichern'}
-                </Button>
+              {/* Sticky footer */}
+              <div className="sticky bottom-0 w-full border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="flex gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] w-full">
+                  <Button 
+                    variant="outline" 
+                    onClick={onClose}
+                    className="flex-1"
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button 
+                    onClick={handleSave} 
+                    disabled={saving || loading}
+                    className="flex-1 bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary"
+                  >
+                    {saving ? 'Speichern...' : 'Fortschritt speichern'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

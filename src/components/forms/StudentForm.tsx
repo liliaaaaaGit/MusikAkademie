@@ -112,36 +112,60 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
 
   // Initialize contract data when editing existing student
   useEffect(() => {
-    if (student?.contract && contractVariants.length > 0 && contractDiscounts.length > 0) {
-      const variant = contractVariants.find(v => v.id === student.contract?.contract_variant_id);
+    if (student?.contracts && student.contracts.length > 0 && contractDataLoaded && contractVariants.length > 0 && contractDiscounts.length > 0) {
+      console.log('Initializing contract data for student:', student.name);
+      console.log('Student contracts:', student.contracts);
+      console.log('Available variants:', contractVariants.length);
+      
+      // Get the first active contract (or the first contract if none are active)
+      const activeContract = student.contracts.find(c => c.status === 'active') || student.contracts[0];
+      console.log('Using contract:', activeContract);
+      
+      const variant = contractVariants.find(v => v.id === activeContract?.contract_variant_id);
+      console.log('Found variant:', variant);
+      
       if (variant) {
         // Ensure all discount IDs are strings for comparison
-        const discountIds = (student.contract?.discount_ids || []).map(String);
+        const discountIds = (activeContract?.discount_ids || []).map(String);
+        console.log('Setting form data with:', {
+          selectedCategoryId: variant.contract_category_id,
+          selectedVariantId: variant.id,
+          selectedDiscountIds: discountIds
+        });
+        
         setFormData(prev => ({
           ...prev,
           selectedCategoryId: variant.contract_category_id,
           selectedVariantId: variant.id,
           selectedDiscountIds: discountIds
         }));
+      } else {
+        console.warn('Contract variant not found in available variants:', activeContract?.contract_variant_id);
       }
     }
-  }, [student, contractVariants, contractDiscounts]);
+  }, [student, contractVariants, contractDiscounts, contractDataLoaded]);
 
   // Initialize custom discount if student's contract has one
   useEffect(() => {
-    if (student?.contract?.custom_discount_percent) {
-      setUseCustomDiscount(true);
-      setCustomDiscountPercent(student.contract.custom_discount_percent);
+    if (student?.contracts && student.contracts.length > 0) {
+      // Get the first active contract (or the first contract if none are active)
+      const activeContract = student.contracts.find(c => c.status === 'active') || student.contracts[0];
       
-      // Add custom discount ID to selected discounts if not already there
-      if (!formData.selectedDiscountIds.includes('custom-discount')) {
-        setFormData(current => ({
-          ...current,
-          selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
-        }));
+      if (activeContract?.custom_discount_percent) {
+        console.log('Initializing custom discount:', activeContract.custom_discount_percent);
+        setUseCustomDiscount(true);
+        setCustomDiscountPercent(activeContract.custom_discount_percent);
+        
+        // Add custom discount ID to selected discounts if not already there
+        if (!formData.selectedDiscountIds.includes('custom-discount')) {
+          setFormData(current => ({
+            ...current,
+            selectedDiscountIds: [...current.selectedDiscountIds, 'custom-discount']
+          }));
+        }
       }
     }
-  }, [student]);
+  }, [student, formData.selectedDiscountIds]);
 
   // Fetch contract data on component mount
   useEffect(() => {
@@ -340,10 +364,11 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     });
 
     // FIXED: Use atomic save function with comprehensive error handling
+    const activeContract = student?.contracts?.find(c => c.status === 'active') || student?.contracts?.[0];
     const { data: saveResult, error: saveError } = await supabase.rpc('atomic_save_and_sync_contract', {
       contract_data: contractData,
-      is_update: !!student?.contract,
-      contract_id_param: student?.contract?.id || null
+      is_update: !!activeContract,
+      contract_id_param: activeContract?.id || null
     });
 
     if (saveError) {

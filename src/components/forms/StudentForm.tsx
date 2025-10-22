@@ -901,7 +901,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
                     <SelectValue placeholder="Kategorie auswählen..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Kein Vertrag</SelectItem>
+                    <SelectItem value={NONE}>Kein Vertrag</SelectItem>
                     {availableCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.display_name}

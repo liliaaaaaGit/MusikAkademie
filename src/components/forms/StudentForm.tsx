@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
 import { supabase, Student, Teacher, ContractCategory, ContractVariant, ContractDiscount, ContractPricing, calculateContractPrice, getContractDuration, getLegacyContractType } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { StudentForEdit } from '@/lib/students/getStudentForEdit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,14 +15,26 @@ import { ReplaceContractConfirmationModal } from '@/components/modals/ReplaceCon
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
 
+type FormValues = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  teacher_id: string | null;
+  contract_variant_id: string | null;
+};
+
 interface StudentFormProps {
   student?: Student;
   teachers: Teacher[];
   onSuccess: () => void;
   onCancel: () => void;
+  // Add these new props for prefilled data
+  prefilledStudent?: StudentForEdit;
+  variants?: { id: string; name: string }[];
 }
 
-export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentFormProps) {
+export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledStudent }: StudentFormProps) {
   const { profile, isAdmin } = useAuth();
   
   // Enhanced teacher profile resolution with robust string comparison
@@ -74,6 +88,35 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     selectedDiscountIds: [] as string[]
   });
   const [loading, setLoading] = useState(false);
+
+  // React Hook Form setup for prefilled data
+  const { setValue, reset, watch, handleSubmit: rhfHandleSubmit } = useForm<FormValues>({
+    defaultValues: {
+      name: prefilledStudent?.name ?? student?.name ?? '',
+      email: prefilledStudent?.email ?? student?.email ?? '',
+      phone: prefilledStudent?.phone ?? student?.phone ?? '',
+      status: prefilledStudent?.status ?? student?.status ?? 'Aktiv',
+      teacher_id: prefilledStudent?.teacher_id ?? student?.teacher_id ?? null,
+      contract_variant_id: prefilledStudent?.contract_variant_id ?? null,
+    },
+  });
+
+  // Reset form when prefilled data changes
+  useEffect(() => {
+    if (prefilledStudent) {
+      reset({
+        name: prefilledStudent.name ?? '',
+        email: prefilledStudent.email ?? '',
+        phone: prefilledStudent.phone ?? '',
+        status: prefilledStudent.status ?? 'Aktiv',
+        teacher_id: prefilledStudent.teacher_id ?? null,
+        contract_variant_id: prefilledStudent.contract_variant_id ?? null,
+      });
+    }
+  }, [prefilledStudent, reset]);
+
+  const teacherId = watch('teacher_id') ?? '';
+  const variantId = watch('contract_variant_id') ?? '';
   // Track when all contract data is loaded
   const [contractDataLoaded, setContractDataLoaded] = useState(false);
 
@@ -384,13 +427,12 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
     return { id: saveResult.contract_id };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (data: FormValues) => {
     setLoading(true);
 
     try {
       // Validate required fields
-      if (!formData.name.trim()) {
+      if (!data.name.trim()) {
         toast.error('Schülername ist erforderlich');
         setLoading(false);
         return;
@@ -721,7 +763,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
 
   return (
     <div className="max-h-[80vh] overflow-y-auto">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={rhfHandleSubmit(handleSubmit)} className="space-y-6">
         {/* Show error if teacher profile is not resolved */}
         {profile?.role === 'teacher' && !isTeacherProfileResolved && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -802,8 +844,11 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
                 Zugewiesener Lehrer {(isAdmin && !student) && <span className="text-red-500">*</span>}
               </Label>
               <Select 
-                value={formData.teacher_id || '__none__'} 
-                onValueChange={(value) => handleChange('teacher_id', value)}
+                value={String(teacherId ?? '')} 
+                onValueChange={(v) => {
+                  setValue('teacher_id', v || null, { shouldDirty: true });
+                  handleChange('teacher_id', v);
+                }}
                 disabled={profile?.role === 'teacher'}
                 required={isAdmin && !student}
               >
@@ -811,11 +856,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
                   <SelectValue placeholder="Lehrer auswählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {isAdmin && student && (
-                    <SelectItem value="__none__">Kein Lehrer zugewiesen</SelectItem>
-                  )}
+                  <SelectItem value="">Kein Lehrer zugewiesen</SelectItem>
                   {availableTeachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
+                    <SelectItem key={teacher.id} value={String(teacher.id)}>
                       {teacher.name} ({teacher.instrument})
                     </SelectItem>
                   ))}
@@ -866,17 +909,20 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
               <div>
                 <Label htmlFor="variant">Vertragsvariante</Label>
                 <Select 
-                  value={formData.selectedVariantId || '__none__'} 
-                  onValueChange={(value) => handleChange('selectedVariantId', value)}
+                  value={String(variantId ?? '')} 
+                  onValueChange={(v) => {
+                    setValue('contract_variant_id', v || null, { shouldDirty: true });
+                    handleChange('selectedVariantId', v);
+                  }}
                   disabled={!formData.selectedCategoryId}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Variante auswählen..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Keine Variante</SelectItem>
+                    <SelectItem value="">Keine Variante</SelectItem>
                     {filteredVariants.map((variant) => (
-                      <SelectItem key={variant.id} value={variant.id}>
+                      <SelectItem key={variant.id} value={String(variant.id)}>
                         {variant.name}
                       </SelectItem>
                     ))}
@@ -884,6 +930,14 @@ export function StudentForm({ student, teachers, onSuccess, onCancel }: StudentF
                 </Select>
               </div>
             </div>
+
+            {/* Preisbox nur anzeigen, wenn die gewählte Variante der vorhandenen entspricht */}
+            {prefilledStudent?.variant && String(variantId ?? '') === String(prefilledStudent.variant.id) && (
+              <div className="rounded-xl border p-3 text-sm">
+                <div className="font-medium">Preise (aktuell)</div>
+                <div>Grundpreis: {prefilledStudent.variant.one_time_price?.toFixed(2)}€ einmalig</div>
+              </div>
+            )}
 
             {/* Contract Information Card */}
             {selectedVariant && (

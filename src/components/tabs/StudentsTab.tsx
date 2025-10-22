@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase, Student, Teacher } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { getStudentForEdit, StudentForEdit } from '@/lib/students/getStudentForEdit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,6 +32,7 @@ export function StudentsTab() {
   const [teacherFilter, setTeacherFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [prefilledStudent, setPrefilledStudent] = useState<StudentForEdit | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [contractModalOpen, setContractModalOpen] = useState(false);
   const [contractModalLoading, setContractModalLoading] = useState(false);
@@ -469,7 +471,16 @@ export function StudentsTab() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {canEditStudent() && (
-                                <DropdownMenuItem onClick={() => setEditingStudent(student)}>
+                                <DropdownMenuItem onClick={async () => {
+                                  setEditingStudent(student);
+                                  try {
+                                    const prefilledData = await getStudentForEdit(student.id);
+                                    setPrefilledStudent(prefilledData);
+                                  } catch (error) {
+                                    console.error('Error loading student data:', error);
+                                    toast.error('Fehler beim Laden der Schülerdaten');
+                                  }
+                                }}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Bearbeiten
                                 </DropdownMenuItem>
@@ -545,11 +556,16 @@ export function StudentsTab() {
               <StudentForm
                 student={editingStudent}
                 teachers={teachers}
+                prefilledStudent={prefilledStudent || undefined}
                 onSuccess={() => {
                   setEditingStudent(null);
+                  setPrefilledStudent(null);
                   fetchStudents();
                 }}
-                onCancel={() => setEditingStudent(null)}
+                onCancel={() => {
+                  setEditingStudent(null);
+                  setPrefilledStudent(null);
+                }}
               />
             )}
           </DialogContent>

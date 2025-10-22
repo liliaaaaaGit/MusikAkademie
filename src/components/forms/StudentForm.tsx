@@ -15,6 +15,11 @@ import { ReplaceContractConfirmationModal } from '@/components/modals/ReplaceCon
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
 
+// Helper constants and functions for shadcn Select compatibility
+const NONE = '__none__';
+const toNullable = (v: string | null | undefined) => (v === NONE ? null : v ?? null);
+const toSelectValue = (v: string | null | undefined) => (v ? String(v) : NONE);
+
 type FormValues = {
   name: string;
   email: string | null;
@@ -844,9 +849,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
                 Zugewiesener Lehrer {(isAdmin && !student) && <span className="text-red-500">*</span>}
               </Label>
               <Select 
-                value={String(teacherId ?? '')} 
+                value={toSelectValue(teacherId)}
                 onValueChange={(v) => {
-                  setValue('teacher_id', v || null, { shouldDirty: true });
+                  setValue('teacher_id', toNullable(v), { shouldDirty: true });
                   handleChange('teacher_id', v);
                 }}
                 disabled={profile?.role === 'teacher'}
@@ -856,7 +861,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
                   <SelectValue placeholder="Lehrer auswählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Kein Lehrer zugewiesen</SelectItem>
+                  <SelectItem value={NONE}>Kein Lehrer zugewiesen</SelectItem>
                   {availableTeachers.map((teacher) => (
                     <SelectItem key={teacher.id} value={String(teacher.id)}>
                       {teacher.name} ({teacher.instrument})
@@ -909,9 +914,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
               <div>
                 <Label htmlFor="variant">Vertragsvariante</Label>
                 <Select 
-                  value={String(variantId ?? '')} 
+                  value={toSelectValue(variantId)}
                   onValueChange={(v) => {
-                    setValue('contract_variant_id', v || null, { shouldDirty: true });
+                    setValue('contract_variant_id', toNullable(v), { shouldDirty: true });
                     handleChange('selectedVariantId', v);
                   }}
                   disabled={!formData.selectedCategoryId}
@@ -920,7 +925,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
                     <SelectValue placeholder="Variante auswählen..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Keine Variante</SelectItem>
+                    <SelectItem value={NONE}>Keine Variante</SelectItem>
                     {filteredVariants.map((variant) => (
                       <SelectItem key={variant.id} value={String(variant.id)}>
                         {variant.name}
@@ -932,7 +937,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
             </div>
 
             {/* Preisbox nur anzeigen, wenn die gewählte Variante der vorhandenen entspricht */}
-            {prefilledStudent?.variant && String(variantId ?? '') === String(prefilledStudent.variant.id) && (
+            {prefilledStudent?.variant && toSelectValue(variantId) === toSelectValue(prefilledStudent.variant.id) && (
               <div className="rounded-xl border p-3 text-sm">
                 <div className="font-medium">Preise (aktuell)</div>
                 <div>Grundpreis: {prefilledStudent.variant.one_time_price?.toFixed(2)}€ einmalig</div>

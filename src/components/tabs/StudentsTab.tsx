@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase, Student, Teacher } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { getStudentForEdit, StudentForEdit } from '@/lib/students/getStudentForEdit';
@@ -12,7 +12,7 @@ import { Plus, Search, MoreHorizontal, Edit, Trash2, FileText } from 'lucide-rea
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { StudentForm } from '@/components/forms/StudentForm';
 import { DeleteStudentConfirmationModal } from '@/components/modals/DeleteStudentConfirmationModal';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { INSTRUMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
 import { ContractDetailsModal } from '@/components/modals/ContractDetailsModal';
@@ -38,12 +38,7 @@ export function StudentsTab() {
   const [contractModalLoading, setContractModalLoading] = useState(false);
   const [contractModalData, setContractModalData] = useState(null as import('@/lib/supabase').Contract | null);
 
-  // Memoize current teacher lookup
-  const currentTeacher = useMemo(() => 
-    profile?.id ? teachers.find(t => t.profile_id === profile.id) : undefined, 
-    [profile, teachers]
-  );
-  const currentTeacherId = currentTeacher?.id;
+  // Note: currentTeacher lookup removed as it's not used after server-side filtering removal
 
   useEffect(() => {
     fetchStudents();
@@ -76,10 +71,7 @@ export function StudentsTab() {
         `)
         .order('name', { ascending: true });
 
-      // Filter by teacher for non-admin users
-      if (profile?.role === 'teacher' && currentTeacherId) {
-        query = query.eq('teacher_id', currentTeacherId);
-      }
+      // Note: Server-side filtering removed - client-side filtering in filteredStudents handles this
 
       const { data, error } = await query;
 
@@ -532,6 +524,7 @@ export function StudentsTab() {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Neuen Schüler hinzufügen</DialogTitle>
+              <DialogDescription>Füllen Sie die Felder aus und speichern Sie.</DialogDescription>
             </DialogHeader>
             <StudentForm
               teachers={teachers}
@@ -551,12 +544,13 @@ export function StudentsTab() {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Schüler bearbeiten</DialogTitle>
+              <DialogDescription>Bearbeiten Sie die Schülerinformationen und speichern Sie die Änderungen.</DialogDescription>
             </DialogHeader>
-            {editingStudent && (
+            {editingStudent && prefilledStudent && (
               <StudentForm
                 student={editingStudent}
                 teachers={teachers}
-                prefilledStudent={prefilledStudent || undefined}
+                prefilledStudent={prefilledStudent}
                 onSuccess={() => {
                   setEditingStudent(null);
                   setPrefilledStudent(null);

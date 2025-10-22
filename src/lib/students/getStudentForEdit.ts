@@ -25,14 +25,14 @@ export async function getStudentForEdit(studentId: string): Promise<StudentForEd
 
   const { data: s, error: sErr } = await supabase
     .from('students')
-    .select('id,name,email,phone,status,teacher_id,price_version')
+    .select('id,name,email,phone,status,price_version')
     .eq('id', studentId)
     .single();
   if (sErr || !s) throw new Error(sErr?.message ?? 'Student not found');
 
   const { data: c } = await supabase
     .from('contracts')
-    .select('id, contract_variant_id, status, created_at')
+    .select('id, contract_variant_id, status, created_at, teacher_id')
     .eq('student_id', studentId)
     .order('status', { ascending: true })
     .order('created_at', { ascending: false })
@@ -43,7 +43,7 @@ export async function getStudentForEdit(studentId: string): Promise<StudentForEd
   if (c?.contract_variant_id) {
     const { data: v } = await supabase
       .from('contract_variants')
-      .select('id,name,session_length_minutes,total_lessons,monthly_price,one_time_price,price_version')
+      .select('id,name,session_length_minutes,total_lessons,monthly_price,one_time_price,price_version,contract_category_id')
       .eq('id', c.contract_variant_id)
       .single();
     variant = v ?? null;
@@ -55,7 +55,7 @@ export async function getStudentForEdit(studentId: string): Promise<StudentForEd
     email: s.email,
     phone: s.phone,
     status: s.status,
-    teacher_id: s.teacher_id,
+    teacher_id: c?.teacher_id ?? null,  // <<< WICHTIG: aus Vertrag
     contract_id: c?.id ?? null,
     contract_variant_id: c?.contract_variant_id ?? null,
     variant,

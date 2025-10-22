@@ -125,23 +125,25 @@ export function TeachersTab() {
     if (!deletingTeacher) return;
 
     try {
-      const { error } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('id', deletingTeacher.id);
+      // Import the action function
+      const { deleteTeacherHard } = await import('@/lib/actions/teacherActions');
+      
+      // Call the secure RPC function
+      const result = await deleteTeacherHard(deletingTeacher.id);
 
-      if (error) {
-        toast.error('Fehler beim Löschen des Lehrers', { description: error.message });
-        return;
-      }
+      // Show detailed success message
+      toast.success(
+        `Lehrer erfolgreich gelöscht: ${result.deleted.contracts} Verträge, ${result.deleted.progress_entries} Einträge, ${result.deleted.trial_lessons} Proben; ${result.deleted.students_unassigned} Schüler ohne Zuweisung.`
+      );
 
-      toast.success('Lehrer erfolgreich gelöscht');
       setDeletingTeacher(null);
       fetchTeachers();
       fetchTeacherContractCounts();
     } catch (error) {
       console.error('Error deleting teacher:', error);
-      toast.error('Fehler beim Löschen des Lehrers');
+      toast.error('Fehler beim Löschen des Lehrers', { 
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
     }
   };
 

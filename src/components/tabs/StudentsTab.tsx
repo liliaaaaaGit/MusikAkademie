@@ -80,6 +80,7 @@ export function StudentsTab() {
         return;
       }
 
+      console.log('Fetched students data:', data);
       setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -530,7 +531,10 @@ export function StudentsTab() {
               teachers={teachers}
               onSuccess={() => {
                 setShowAddForm(false);
-                fetchStudents();
+                // Add small delay to ensure database transaction is committed
+                setTimeout(() => {
+                  fetchStudents();
+                }, 500);
               }}
               onCancel={() => setShowAddForm(false)}
             />
@@ -554,7 +558,10 @@ export function StudentsTab() {
                 onSuccess={() => {
                   setEditingStudent(null);
                   setPrefilledStudent(null);
-                  fetchStudents();
+                  // Add small delay to ensure database transaction is committed
+                  setTimeout(() => {
+                    fetchStudents();
+                  }, 500);
                 }}
                 onCancel={() => {
                   setEditingStudent(null);

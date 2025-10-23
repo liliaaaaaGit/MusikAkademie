@@ -82,8 +82,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
 
   const [formData, setFormData] = useState({
     instrument: student?.instrument || '',
-    email: student?.email || '',
-    phone: student?.phone || '',
     teacher_id: student?.teacher_id || (profile?.role === 'teacher' && currentTeacherId ? currentTeacherId : ''),
     status: student?.status || 'active',
     // Contract fields
@@ -368,7 +366,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
     }
   };
 
-  const performContractSave = async (studentId: string) => {
+  const performContractSave = async (studentId: string, values: FormValues) => {
     if (!selectedCategory) {
       throw new Error('Vertragskategorie nicht gefunden');
     }
@@ -376,9 +374,9 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
     // FIXED: Prepare contract data for safe save with UUID validation
     const contractData = {
       student_id: studentId,
-      teacher_id: formData.teacher_id && formData.teacher_id.trim() !== '' ? formData.teacher_id : null,
+      teacher_id: values.teacher_id && values.teacher_id.trim() !== '' ? values.teacher_id : null,
       type: getLegacyContractType(selectedCategory.name),
-      contract_variant_id: formData.selectedVariantId && formData.selectedVariantId.trim() !== '' ? formData.selectedVariantId : null,
+      contract_variant_id: values.contract_variant_id && values.contract_variant_id.trim() !== '' ? values.contract_variant_id : null,
       status: 'active',
       // FIXED: Handle discount IDs properly
       discount_ids: formData.selectedDiscountIds.filter(id => id !== 'custom-discount').length > 0 
@@ -568,7 +566,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
 
         // FIXED: Create or update contract
         try {
-          const contractResult = await performContractSave(studentId);
+          const contractResult = await performContractSave(studentId, data);
           contractId = contractResult.id;
           // NEW: Update student with contract_id if contract was created
           if (contractId) {
@@ -825,8 +823,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
               <Input
                 id="email"
                 type="email"
-                value={formData.email}
-                onChange={(e) => handleChange('email', e.target.value)}
+                {...register("email")}
                 placeholder="student@email.com"
               />
             </div>
@@ -835,8 +832,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
               <Label htmlFor="phone">Telefon</Label>
               <Input
                 id="phone"
-                value={formData.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
+                {...register("phone")}
                 placeholder="+49 123 456 789"
               />
             </div>

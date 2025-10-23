@@ -99,7 +99,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
       name: prefilledStudent?.name ?? student?.name ?? '',
       email: prefilledStudent?.email ?? student?.email ?? '',
       phone: prefilledStudent?.phone ?? student?.phone ?? '',
-      status: prefilledStudent?.status ?? student?.status ?? 'Aktiv',
+      status: prefilledStudent?.status ?? student?.status ?? 'active',
       teacher_id: prefilledStudent?.teacher_id ?? student?.teacher_id ?? null,
       contract_variant_id: prefilledStudent?.contract_variant_id ?? null,
     },
@@ -112,7 +112,7 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
         name: prefilledStudent.name ?? '',
         email: prefilledStudent.email ?? '',
         phone: prefilledStudent.phone ?? '',
-        status: prefilledStudent.status ?? 'Aktiv',
+        status: prefilledStudent.status ?? 'active',
         teacher_id: prefilledStudent.teacher_id ?? null,
         contract_variant_id: prefilledStudent.contract_variant_id ?? null,
       });

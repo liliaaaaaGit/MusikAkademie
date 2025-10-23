@@ -81,6 +81,11 @@ export function StudentsTab() {
       }
 
       console.log('Fetched students data:', data);
+      // Debug: Check specific student status
+      const aleaStudent = data?.find((s: any) => s.name === 'Alea Kumpf');
+      if (aleaStudent) {
+        console.log('Alea Kumpf status:', aleaStudent.status);
+      }
       setStudents((data as unknown as Student[]) || []);
     } catch (error) {
       console.error('Error fetching students:', error);

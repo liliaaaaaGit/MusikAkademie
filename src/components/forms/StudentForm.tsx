@@ -83,7 +83,6 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
   const [formData, setFormData] = useState({
     instrument: student?.instrument || '',
     teacher_id: student?.teacher_id || (profile?.role === 'teacher' && currentTeacherId ? currentTeacherId : ''),
-    status: student?.status || 'active',
     // Contract fields
     selectedCategoryId: '',
     selectedVariantId: '',
@@ -870,7 +869,12 @@ export function StudentForm({ student, teachers, onSuccess, onCancel, prefilledS
 
             <div>
               <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => handleChange('status', value as 'active' | 'inactive')}>
+              <Select 
+                value={watch('status')} 
+                onValueChange={(value) => {
+                  setValue('status', value as 'active' | 'inactive', { shouldDirty: true });
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
